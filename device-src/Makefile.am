@@ -6,8 +6,11 @@ include $(top_srcdir)/config/automake/precompile.am
 
 AM_CPPFLAGS =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src \
+		-I$(top_builddir)/xfer-src \
 		-I$(top_srcdir)/xfer-src \
+		-I$(top_builddir)/ndmp-src \
 		-I$(top_srcdir)/ndmp-src \
+		-I$(top_builddir)/gnulib \
 		-I$(top_srcdir)/gnulib
 
 AM_CFLAGS = $(AMANDA_WARNING_CFLAGS) $(AMANDA_FILE_CFLAGS)

@@ -562,7 +562,7 @@ bind_portrange(
 	struct servent_data servent_data;
 	memset(&servent_data, 0, sizeof(struct servent_data));
 	r = getservbyport_r((int)htons(port), proto, &servPort, &servent_data);
-	result = &servPort
+	result = &servPort;
 #else
 	result = getservbyport((int)htons(port), proto);
 #endif

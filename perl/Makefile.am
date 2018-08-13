@@ -22,7 +22,9 @@ AM_CPPFLAGS =  \
             -I$(top_srcdir)/amar-src \
             -I$(top_srcdir)/xfer-src \
             -I$(top_srcdir)/perl/amglue \
+            -I$(top_builddir)/gnulib \
             -I$(top_srcdir)/gnulib \
+            -I$(top_builddir)/ndmp-src \
             -I$(top_srcdir)/ndmp-src \
             $(PERL_INC)
 

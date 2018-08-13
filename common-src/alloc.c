@@ -83,6 +83,7 @@ safe_env_full(char **add)
     keep_all_env = (getuid() == geteuid() && getgid() == getegid());
 #endif
     if (keep_all_env) {
+        extern char **environ;
 	env_cnt = 1;
 	for (env = environ; *env != NULL; env++)
 	    env_cnt++;
