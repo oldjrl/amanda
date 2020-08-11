@@ -96,7 +96,7 @@ SWIG_OPTIONS=-perl5 -proxy -DSWIG_TYPE_TABLE=SWIG_TYPES_Amanda -I$(srcdir)
 # they are only used during development.
 %.c : %.swg $(AMGLUE_SWG) %.pod
 	$(MKDIR_P) `dirname $@`
-	$(SWIG) $(SWIG_OPTIONS) -o $@ $(top_srcdir)/perl/$< || { rm -f $@; false; }
+	$(SWIG) $(SWIG_OPTIONS) -o $@ $< || { rm -f $@; false; }
 %.pm : %.c
 	@echo "$@ was produced as a side-effect of creating $<"
 	@touch $@
