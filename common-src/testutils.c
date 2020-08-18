@@ -58,6 +58,8 @@ static gboolean run_one_test(TestUtilsTest *test)
 
     timer = g_timer_new();
 
+    g_fprintf(stderr, " starting test %s\n", test_name);
+
     while (count++ < occurrences) {
         if (!ignore_timeouts)
             alarm(test->timeout);
@@ -208,9 +210,10 @@ testutils_run_tests(
 	    return 1;
 	} else {
 	    int found = 0;
+	    char *test_name = argv[1];
 
 	    for (t = tests; t->fn; t++) {
-		if (g_str_equal(argv[1], t->name)) {
+		if (g_str_equal(test_name, t->name)) {
 		    found = 1;
 		    t->selected = 1;
 		    break;
@@ -218,7 +221,7 @@ testutils_run_tests(
 	    }
 
 	    if (!found) {
-		g_fprintf(stderr, "Test '%s' not found\n", argv[1]);
+		g_fprintf(stderr, "Test '%s' not found\n", test_name);
 		return 1;
 	    }
 

@@ -588,6 +588,8 @@ xmsgsource_dispatch(
         && xfer->status != XFER_DONE
         && (msg = (XMsg *)g_async_queue_try_pop(xfer->queue))) {
 
+        g_debug("xmsgsource_dispatch: msg %s", xmsg_repr(msg));
+
 	/* We get first crack at interpreting messages, before calling the
 	 * designated callback. */
 	deliver_to_caller = TRUE;
@@ -595,7 +597,7 @@ xmsgsource_dispatch(
 	    /* Intercept and count DONE messages so that we can determine when
 	     * the entire transfer is finished. */
 	    case XMSG_DONE:
-		if (--xfer->num_active_elements <= 0) {
+		if (--xfer->num_active_elements <= 0 || xfer->status == XFER_CANCELLED) {
 		    /* mark the transfer as done, and take a note to break out
 		     * of this loop after delivering the message to the user */
 		    xfer_set_status(xfer, XFER_DONE);
