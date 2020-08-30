@@ -54,6 +54,13 @@
 
 #include <fstab.h>
 
+#if defined(HAVE_LIBUTIL)
+#include <util.h>
+#include <sys/ioctl.h>
+#include <sys/disk.h>
+#include <sys/dkio.h>
+#endif
+
 int
 open_fstab(void)
 {
@@ -78,7 +85,33 @@ get_fstab_nextentry(
     if(!sys_fsent)
 	return 0;
     g_free(xfsname);
+#if defined(HAVE_LIBUTIL)
+    {
+      char *realpath = NULL;
+      int dm_fd = -1;
+      int ioresult = -1;
+      char namebuf[PATH_MAX];
+      struct dk_diskmap dm;
+
+      if (isduid(sys_fsent->fs_spec, 0)) {
+	strlcpy(namebuf, sys_fsent->fs_spec, sizeof(namebuf));
+	if ((dm_fd = open("/dev/diskmap", O_RDONLY)) != -1) {
+	  bzero(&dm, sizeof(struct dk_diskmap));
+	  dm.device = namebuf;
+	  dm.fd = dm_fd;
+	  dm.flags |= DM_OPENBLCK;
+	  ioresult = ioctl(dm_fd, DIOCMAP, &dm);
+	}
+	close(dm_fd);
+	realpath = namebuf;
+      } else {
+	realpath = sys_fsent->fs_spec;
+      }
+      fsent->fsname = xfsname = g_strdup(realpath);
+    }
+#else
     fsent->fsname = xfsname = g_strdup(sys_fsent->fs_spec);
+#endif
     g_free(xmntdir);
     fsent->mntdir = xmntdir = g_strdup(sys_fsent->fs_file);
     fsent->freq    = sys_fsent->fs_freq;
