@@ -7966,7 +7966,7 @@ func_mode_link ()
 	  fi
 	  test yes = "$hardcode_automatic" && avoidtemprpath=yes
 	else
-	  if test ! -f "$ladir/$objdir/$linklib" && test -f "$abs_ladir/$linklib"; then
+	  if test ! \( -f "$ladir/$objdir/$linklib" -o -h "$ladir/$objdir/$linklib" \) && test \( -f "$abs_ladir/$linklib" -o -h "$abs_ladir/$linklib" \); then
 	    dir=$ladir
 	    absdir=$abs_ladir
 	    # Remove this search path later
