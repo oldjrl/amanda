@@ -107,7 +107,12 @@ get_fstab_nextentry(
       } else {
 	realpath = sys_fsent->fs_spec;
       }
+# if defined __OpenBSD__
+      /* On OpenBSD, we want the mount point as the fsname. */
+      fsent->fsname = xfsname = g_strdup(sys_fsent->fs_file);
+# else
       fsent->fsname = xfsname = g_strdup(realpath);
+# endif
     }
 #else
     fsent->fsname = xfsname = g_strdup(sys_fsent->fs_spec);
