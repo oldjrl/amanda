@@ -92,6 +92,10 @@ file_lock_lock(
     struct flock lock_buf;
     struct stat stat_buf;
 
+    if (lock->locked) {
+      g_debug("file_lock_lock: %s locked", lock->filename);
+    }
+
     g_assert(!lock->locked);
 
     /* protect from overlapping lock operations within a process */
@@ -207,6 +211,10 @@ lock_rw_rd(
     struct flock lock_buf;
     struct stat stat_buf;
 
+    if (lock->locked) {
+      g_debug("lock_rw_rd: %s locked", lock->filename);
+    }
+
     g_assert(!lock->locked);
 
     /* protect from overlapping lock operations within a process */
@@ -288,6 +296,10 @@ file_lock_write(
 {
     int fd = lock->fd;
 
+    if (!lock->locked) {
+      g_debug("file_lock_write: %s unlocked", lock->filename);
+    }
+
     g_assert(lock->locked);
 
     /* seek to position 0, rewrite, and truncate */
@@ -324,6 +336,10 @@ int
 file_lock_unlock(
     file_lock *lock)
 {
+    if (!lock->locked) {
+      g_debug("file_lock_unlock: %s unlocked", lock->filename);
+    }
+
     g_assert(lock->locked);
 
     g_static_mutex_lock(&lock_lock);
