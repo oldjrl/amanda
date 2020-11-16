@@ -542,6 +542,7 @@ sub start_reading
     my $fd   = shift;
     my $cb   = shift;
     my $text = shift;
+    my @ignore_patterns = map { qr/$_/ } ('^Level \d+ dump of [/\w]+ on ', '^Label: ');
 
     $fd.="";
     $fd = int($fd);
@@ -569,7 +570,8 @@ sub start_reading
 #		if (length($line) > 1) {
 		    if ($line !~ /trailing garbage ignored/) {
 			my $msg_severity;
-			if ($text eq 'application stdout') {
+			if ($text eq 'application stdout'
+			  || $line ~~ @ignore_patterns) {
 			    $msg_severity = $Amanda::Message::INFO;
 			} else {
 			    $msg_severity = $Amanda::Message::ERROR;
