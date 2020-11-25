@@ -542,7 +542,10 @@ sub start_reading
     my $fd   = shift;
     my $cb   = shift;
     my $text = shift;
-    my @ignore_patterns = map { qr/$_/ } ('^Level \d+ dump of [/\w]+ on ', '^Label: ');
+    my @ignore_patterns = map { qr/$_/ } (
+	'^Level \d+ dump of [/\w]+ on ',
+	'^Label: '
+    );
 
     $fd.="";
     $fd = int($fd);
