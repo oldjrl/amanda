@@ -21,6 +21,7 @@
 
 package Installcheck;
 use File::Path;
+use File::Basename;
 use Amanda::Paths;
 
 =head1 NAME
@@ -81,7 +82,7 @@ our $srcdir = $ENV{'srcdir'} || '.';
 # run this just before the script actually executes
 # (not during syntax checks)
 INIT {
-    Amanda::Util::set_pname("$0");
+    Amanda::Util::set_pname(basename("$0"));
     mkpath($TMP);
 }
 
