@@ -1225,3 +1225,9 @@ nb_tape_in_storage(
     return nb_tapes;
 }
 
+/* Return the oldest (last) tape in the tapelist. */
+tape_t *
+get_oldest_tape(void)
+{
+    return lookup_tapepos(lookup_nb_tape());
+}

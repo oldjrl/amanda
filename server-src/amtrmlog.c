@@ -64,6 +64,7 @@ main(
     char *conf_logdir;
     int dumpcycle;
     config_overrides_t *cfg_ovr = NULL;
+    tape_t *oldest_tape;
 
     glib_init();
 
@@ -136,6 +137,14 @@ main(
 	dumpcycle = 30;
     date_keep = today - (dumpcycle * 86400);
 
+    /* Find the oldest tape, and if its dump date is older (less) than the computed default, use it. */
+    oldest_tape = get_oldest_tape();
+    if (oldest_tape && oldest_tape->datestamp) {
+        time_t oldest_tape_date = TIME_T_ATOI(oldest_tape->datestamp);
+        if (oldest_tape_date && oldest_tape_date < date_keep) {
+            date_keep = oldest_tape_date - 1;   /* The - 1 is to work around the ">" in the following tests. */
+        }
+    }
     hash_output_find_log = hash_find_log();
 
     /* determine how many log to keep */

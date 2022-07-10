@@ -98,6 +98,7 @@ main(
     gboolean   sort_index;
     char      *lock_file;
     file_lock *lock_index;
+    tape_t *oldest_tape;
 
     glib_init();
 
@@ -181,6 +182,16 @@ main(
     /* now go through the list of disks and find which have indexes */
     time(&tmp_time);
     tmp_time -= 7*24*60*60;			/* back one week */
+ 
+    /* Find the oldest tape, and if its dump date is older (less) than the computed default, use it. */
+    oldest_tape = get_oldest_tape();
+    if (oldest_tape && oldest_tape->datestamp) {
+        time_t oldest_tape_date = TIME_T_ATOI(oldest_tape->datestamp);
+        if (oldest_tape_date && oldest_tape_date < tmp_time) {
+            tmp_time = oldest_tape_date + 1;    /* the + 1 is to work around the "<" in the following tests. */
+        }
+    }
+ 
     for (dlist = diskl.head; dlist != NULL; dlist = dlist->next)
     {
 	diskp = dlist->data;
