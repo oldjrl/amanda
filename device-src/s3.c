@@ -879,7 +879,7 @@ authenticate_request(S3Handle *hdl,
     char *zulu_date = NULL;
     char *buf = NULL;
 #if (defined OPENSSL_VERSION_NUMBER && OPENSSL_VERSION_NUMBER < 0x10100000L) \
-    || defined LIBRESSL_VERSION_NUMBER
+  || (defined LIBRESSL_VERSION_NUMBER && LIBRESSL_VERSION_NUMBER < 0x3060000fL)
     HMAC_CTX ctx;
 #else
     HMAC_CTX *ctx;
@@ -1261,7 +1261,7 @@ authenticate_request(S3Handle *hdl,
 	/* run HMAC-SHA1 on the canonicalized string */
 	md = g_byte_array_sized_new(EVP_MAX_MD_SIZE+1);
 #if (defined OPENSSL_VERSION_NUMBER && OPENSSL_VERSION_NUMBER < 0x10100000L) \
-    || defined LIBRESSL_VERSION_NUMBER
+  || (defined LIBRESSL_VERSION_NUMBER && LIBRESSL_VERSION_NUMBER < 0x3060000fL)
 	HMAC_CTX_init(&ctx);
 	HMAC_Init_ex(&ctx, hdl->secret_key, (int) strlen(hdl->secret_key),
 		     EVP_sha1(), NULL);
