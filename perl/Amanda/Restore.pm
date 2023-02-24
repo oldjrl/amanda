@@ -544,7 +544,8 @@ sub start_reading
     my $text = shift;
     my @ignore_patterns = map { qr/$_/ } (
 	'^Level \d+ dump of [/\w]+ on ',
-	'^Label: '
+	'^Label: ',
+	'^restore: cannot open /dev/tty: Device not configured'
     );
 
     $fd.="";
