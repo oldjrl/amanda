@@ -383,16 +383,20 @@ connect_port(
     struct servent_data servent_data;
     memset(&servent_data, 0, sizeof(struct servent_data));
     r = getservbyport_r((int)htons(port), proto, &servPort, &servent_data);
-    result = &servPort;
+    result = r == 0 ? &servPort : NULL;
 #else
     result = getservbyport((int)htons(port), proto);
 #endif
 
     if (result != NULL && !strstr(result->s_name, AMANDA_SERVICE_NAME)) {
-	dbprintf(_("connect_port: Skip port %d: owned by %s.\n"),
-		  port, result->s_name);
-	errno = EBUSY;
-	return -1;
+	dbprintf(_("connect_port: Skip port %d: owned by %s (%d, %s).\n"),
+		 port, result->s_name,
+		 result->s_port, result->s_proto
+		 );
+	if (strcmp(result->s_name, "amidxtape") && strcmp(result->s_name, "amandaidx")) {
+	  errno = EBUSY;
+	  return -1;
+	}
     }
 
     if ((s = make_socket(SU_GET_FAMILY(addrp))) == -1) return -2;
@@ -562,14 +566,17 @@ bind_portrange(
 	struct servent_data servent_data;
 	memset(&servent_data, 0, sizeof(struct servent_data));
 	r = getservbyport_r((int)htons(port), proto, &servPort, &servent_data);
-	result = &servPort
+	result = r == 0 ? &servPort : NULL;
 #else
 	result = getservbyport((int)htons(port), proto);
 #endif
 
 	amfree(*bind_msg);
 g_debug("bind_portrange2: Try  port %d", port);
-	if ((result == NULL) || strstr(result->s_name, AMANDA_SERVICE_NAME)) {
+	if ((result == NULL) || strstr(result->s_name, AMANDA_SERVICE_NAME)
+	    || strcmp(result->s_name, "amandaidx") == 0
+	    || strcmp(result->s_name, "amidxtape") == 0
+	    ) {
 	    SU_SET_PORT(addrp, port);
 	    socklen = SS_LEN(addrp);
 	    if (!priv) {

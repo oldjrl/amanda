@@ -53,6 +53,10 @@ safe_env_full(char **add)
 #ifdef NEED_LD_LIBRARY_PATH_ENV
 	"LD_LIBRARY_PATH",
 #endif
+#ifdef PRESERVE_LOCALE
+	"LANG",
+	"LC_ALL",
+#endif
 	NULL
     };
 
@@ -83,6 +87,7 @@ safe_env_full(char **add)
     keep_all_env = (getuid() == geteuid() && getgid() == getegid());
 #endif
     if (keep_all_env) {
+        extern char **environ;
 	env_cnt = 1;
 	for (env = environ; *env != NULL; env++)
 	    env_cnt++;
@@ -95,7 +100,7 @@ safe_env_full(char **add)
 		p++;
 	    }
 	    for (env = environ; *env != NULL; env++) {
-#ifdef FAILURE_CODE
+#if defined( FAILURE_CODE ) || defined( PRESERVE_LOCALE )
 		{
 #else
 		if (strncmp("LANG=", *env, 5) != 0 &&

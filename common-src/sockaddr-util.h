@@ -28,6 +28,7 @@
 #ifndef SOCKADDR_UTIL_H
 #define	SOCKADDR_UTIL_H
 
+#include <sys/socket.h>
 #include <arpa/inet.h>
 
 /* Unfortunately, the system-level sockaddr_storage definition can lead to

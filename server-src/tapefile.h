@@ -114,4 +114,6 @@ RetentionType get_retention_type(char *pool, char *label);
 int tape_overwrite(storage_t *st, tape_t *tp);
 int nb_tape_in_storage(storage_t *st);
 
+tape_t * get_oldest_tape(void);  /* Return the oldest (last) tape in the tapelist. */
+
 #endif /* !TAPEFILE_H */

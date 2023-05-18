@@ -49,6 +49,32 @@
 #define TEST_BLOCK_EXTRA 97
 #define TEST_XFER_SIZE ((TEST_BLOCK_SIZE*TEST_BLOCK_COUNT)+TEST_BLOCK_EXTRA)
 
+/* An INET address of 0.0.0.0 won't work on OpenBSD */
+void clean_inet_connect_address(sockaddr_union *addrs);
+void clean_inet_connect_address(sockaddr_union *addrs)
+{
+    switch (addrs->ss.ss_family) {
+      case AF_INET:
+	{
+	    struct in_addr * inaddr = &addrs->sin.sin_addr;
+	    if (inaddr->s_addr == htonl(INADDR_ANY)) {
+	      inaddr->s_addr = htonl(INADDR_LOOPBACK);
+	    }
+	}
+	break;
+#ifdef WORKING_IPV6
+      case AF_INET6:
+	{
+	    struct in6_addr * in6addr = &addrs->sin6.sin6_addr;
+	    if (memcmp(in6addr, &in6addr_any, addrs->sin6.sin6_len)) {
+		memcpy(in6addr, &in6addr_loopback, addrs->sin6.sin6_len);
+	    }
+	}
+	break;
+#endif
+  }
+}
+
 /* READFD */
 
 static GType xfer_source_readfd_get_type(void);
@@ -498,7 +524,9 @@ source_listen_thread(
 	error("socket(): %s", strerror(errno));
     }
     if (connect(sock, (struct sockaddr *)addrs, SS_LEN(addrs)) < 0) {
-	error("connect(): %s", strerror(errno));
+	error("source_listen_thread - connect(%d, 0x%x (%s), %d): %s",
+	      sock, addrs, str_sockaddr(addrs), SS_LEN(addrs),
+	      strerror(errno));
     }
 
     tu_dbg("connected to %s\n", str_sockaddr(addrs));
@@ -673,6 +701,8 @@ source_connect_setup_impl(
 
     addrs = g_new0(DirectTCPAddr, 2);
     copy_sockaddr(&addrs[0], &addr);
+    /* An INET address of 0.0.0.0 won't work on OpenBSD */
+    clean_inet_connect_address(addrs);
     elt->output_listen_addrs = addrs;
 
     return TRUE;
@@ -1246,6 +1276,8 @@ dest_listen_setup_impl(
 
     addrs = g_new0(DirectTCPAddr, 2);
     copy_sockaddr(&addrs[0], &addr);
+    /* An INET address of 0.0.0.0 won't work on OpenBSD */
+    clean_inet_connect_address(addrs);
     elt->input_listen_addrs = addrs;
 
     return TRUE;
@@ -1351,7 +1383,9 @@ dest_connect_thread(
 	error("socket(): %s", strerror(errno));
     }
     if (connect(sock, (struct sockaddr *)&addr, SS_LEN(&addr)) < 0) {
-	error("connect(): %s", strerror(errno));
+	error("dest_connect_thread - connect(%d, 0x%x (%s), %d): %s",
+	      sock, &addr, str_sockaddr(&addr), SS_LEN(&addr),
+		 strerror(errno));
     }
 
     tu_dbg("connected to %s\n", str_sockaddr(&addr));

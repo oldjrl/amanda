@@ -14,6 +14,8 @@ AC_DEFUN([AMANDA_SETUP_GETFSENT], [
 	sys/vfstab.h \
     )
 
+    AC_CHECK_LIB(util,opendev)
+
     AC_CHECK_FUNCS(endmntent)
     AC_CHECK_FUNCS(setmntent)
 ])

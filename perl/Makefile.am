@@ -22,7 +22,9 @@ AM_CPPFLAGS =  \
             -I$(top_srcdir)/amar-src \
             -I$(top_srcdir)/xfer-src \
             -I$(top_srcdir)/perl/amglue \
+            -I$(top_builddir)/gnulib \
             -I$(top_srcdir)/gnulib \
+            -I$(top_builddir)/ndmp-src \
             -I$(top_srcdir)/ndmp-src \
             $(PERL_INC)
 
@@ -94,7 +96,7 @@ SWIG_OPTIONS=-perl5 -proxy -DSWIG_TYPE_TABLE=SWIG_TYPES_Amanda -I$(srcdir)
 # they are only used during development.
 %.c : %.swg $(AMGLUE_SWG) %.pod
 	$(MKDIR_P) `dirname $@`
-	$(SWIG) $(SWIG_OPTIONS) -o $@ $(top_srcdir)/perl/$< || { rm -f $@; false; }
+	$(SWIG) $(SWIG_OPTIONS) -o $@ $< || { rm -f $@; false; }
 %.pm : %.c
 	@echo "$@ was produced as a side-effect of creating $<"
 	@touch $@

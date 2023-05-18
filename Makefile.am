@@ -4,7 +4,7 @@ AUTOMAKE_OPTIONS = 1.10 foreign
 include $(top_srcdir)/config/automake/vars.am
 include $(top_srcdir)/config/automake/installperms.am
 
-ACLOCAL_AMFLAGS = --force -I config -I . -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive -I /usr/share/aclocal
+ACLOCAL_AMFLAGS = --force -I config -I . -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive -I /usr/local/share/aclocal
 
 if WANT_CLIENT
 CLIENT_SUBDIRS = client-src application-src
@@ -151,4 +151,4 @@ endif
 
 # ensure that configure gets the right arguments for distcheck; this keeps the
 # user/group through to the distcheck, rather than defaulting back to 'amanda'.
-DISTCHECK_CONFIGURE_FLAGS = --with-user=$(CLIENT_LOGIN) --with-group=$(SETUID_GROUP) --with-owner=$(BINARY_OWNER) --disable-installperms --without-amperldir --without-force-uid --with-tmpdir=$(AMANDA_TMPDIR) --with-failure-code SINGLE_USERID=yes CLOBBER_MY_CONFIG=OK
+DISTCHECK_CONFIGURE_FLAGS = --with-user=$(CLIENT_LOGIN) --with-group=$(SETUID_GROUP) --with-owner=$(BINARY_OWNER) --disable-installperms --without-amperldir --without-force-uid --with-tmpdir=$(AMANDA_TMPDIR) --with-failure-code SINGLE_USERID=yes CLOBBER_MY_CONFIG=OK --with-preserve-locale

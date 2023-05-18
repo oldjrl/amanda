@@ -7966,7 +7966,7 @@ func_mode_link ()
 	  fi
 	  test yes = "$hardcode_automatic" && avoidtemprpath=yes
 	else
-	  if test ! -f "$ladir/$objdir/$linklib" && test -f "$abs_ladir/$linklib"; then
+	  if test ! \( -f "$ladir/$objdir/$linklib" -o -h "$ladir/$objdir/$linklib" \) && test \( -f "$abs_ladir/$linklib" -o -h "$abs_ladir/$linklib" \); then
 	    dir=$ladir
 	    absdir=$abs_ladir
 	    # Remove this search path later
@@ -7975,7 +7975,7 @@ func_mode_link ()
 	    dir=$ladir/$objdir
 	    absdir=$abs_ladir/$objdir
 	    # Remove this search path later
-	    func_append notinst_path " $abs_ladir"
+	    func_append notinst_path " $dir"
 	  fi
 	fi # $installed = yes
 	func_stripname 'lib' '.la' "$laname"
@@ -9498,11 +9498,11 @@ EOF
       new_libs=
       for path in $notinst_path; do
 	case " $new_libs " in
-	*" -L$path/$objdir "*) ;;
+	*" -L$path "*) ;;
 	*)
 	  case " $deplibs " in
-	  *" -L$path/$objdir "*)
-	    func_append new_libs " -L$path/$objdir" ;;
+	  *" -L$path "*)
+	    func_append new_libs " -L$path"
 	  esac
 	  ;;
 	esac
@@ -10230,11 +10230,11 @@ EOF
       new_libs=
       for path in $notinst_path; do
 	case " $new_libs " in
-	*" -L$path/$objdir "*) ;;
+	*" -L$path "*) ;;
 	*)
 	  case " $compile_deplibs " in
-	  *" -L$path/$objdir "*)
-	    func_append new_libs " -L$path/$objdir" ;;
+	  *" -L$path "*)
+	    func_append new_libs " -L$path" ;;
 	  esac
 	  ;;
 	esac

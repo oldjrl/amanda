@@ -329,11 +329,10 @@ sub user_message {
     my $message = shift;
 
     if ($message->{'code'} == 4900000) { #SIZE
+	# Don't print progress info if we're not writing to a terminal
 	if ($self->{'is_tty'}) {
 	    print STDOUT "\r$message    ";
 	    $self->{'last_is_size'} = 1;
-	} else {
-	    print STDOUT "SIZE: $message\n";
 	}
     } elsif ($message->{'code'} == 4900012) { #READ SIZE
 	if ($self->{'is_tty'}) {
