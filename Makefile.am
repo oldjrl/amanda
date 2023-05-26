@@ -4,7 +4,7 @@ AUTOMAKE_OPTIONS = 1.10 foreign
 include $(top_srcdir)/config/automake/vars.am
 include $(top_srcdir)/config/automake/installperms.am
 
-ACLOCAL_AMFLAGS = --force -I config -I . -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive -I /usr/local/share/aclocal -I /opt/local/share/aclocal
+ACLOCAL_AMFLAGS = --force -I config -I . -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive
 
 if WANT_CLIENT
 CLIENT_SUBDIRS = client-src application-src

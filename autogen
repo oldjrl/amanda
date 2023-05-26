@@ -4,7 +4,7 @@
 cd `dirname $0`
 
 # if you change this, please also change it in the root Makefile.am
-includes="-I . -I config -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive -I /usr/local/share/aclocal -I /opt/local/share/aclocal"
+includes="-I . -I config -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive"
 
 # clean up
 rm -f aclocal.m4
