@@ -149,7 +149,7 @@ in the
 amdump daily ; logdir=`amgetconf daily logdir` ; log=`ls -1t $logdir/log.*.[0-9] | head -1` ; amtoc -a $log
 </programlisting>
 
-<para>which will generate /usr/local/etc/amanda//daily/<emphasis remap='I'>tape_label</emphasis>.toc.
+<para>which will generate @amandastatedir@/daily/<emphasis remap='I'>tape_label</emphasis>.toc.
 You may also want to call
 <command>amtoc</command>
 after an

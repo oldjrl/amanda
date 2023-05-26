@@ -80,22 +80,22 @@ AC_DEFUN([AMANDA_WITH_LOGDIR],
 # OVERVIEW
 #
 #   Implements --with-gnutar-listdir.  Defines GNUTAR_LISTED_INCREMENTAL_DIR to the
-#   value given or $localstatedir/amanda/gnutar-lists by default.  Any $xxxdir variables
+#   value given or $amandastatedir/gnutar-lists by default.  Any $xxxdir variables
 #   are fully evaluated in the value.
 #
 AC_DEFUN([AMANDA_WITH_GNUTAR_LISTDIR], 
 [
     AC_ARG_WITH(gnutar-listdir,
        AS_HELP_STRING([--with-gnutar-listdir=DIR],
-        [put gnutar directory lists in DIR (default: localstatedir/amanda/gnutar-lists)]),
+        [put gnutar directory lists in DIR (default: amandastatedir/gnutar-lists)]),
        [
             case "$withval" in
                 n | no) GNUTAR_LISTDIR= ;;
-                y | ye | yes) GNUTAR_LISTDIR='${localstatedir}/amanda/gnutar-lists' ;;
+                y | ye | yes) GNUTAR_LISTDIR='${amandastatedir}/gnutar-lists' ;;
                 *) GNUTAR_LISTDIR="$withval" ;;
             esac
         ], [
-            GNUTAR_LISTDIR='${localstatedir}/amanda/gnutar-lists'
+            GNUTAR_LISTDIR='${amandastatedir}/gnutar-lists'
         ]
     )
 
@@ -161,6 +161,8 @@ AC_DEFUN([AMANDA_WITH_TMPDIR],
 #   - amlibexecdir = --with-amlibexecdir or ${libexecdir}/amanda
 #   - amincludedir = ${includedir}/amanda
 #   - amperldir = --with-amperldir or `perl -V:installsitearch`
+#   - amandastatedir = --with-amandastatedir or ${localstatedir}/amanda
+#   - amandahomedir = --with-amandahomedir or ${localstatedir}/amanda
 #   - APPLICATION_DIR = ${amlibexecdir}/application
 #
 AC_DEFUN([AMANDA_EXPAND_DIRS],
@@ -257,6 +259,18 @@ AC_DEFUN([AMANDA_EXPAND_DIRS],
     )
     AC_DEFINE_DIR([amdatadir], [AMDATADIR],
 	[Directory in which amanda's templates and examples are installed. ])
+
+    AC_ARG_WITH(amandastatedir,
+	AS_HELP_STRING([--with-amandastatedir[[[[[=PATH]]]]]],
+		[Where amanda's run-time status is kept; default: $localstatedir/amanda]),
+	[
+	    AMANDASTATEDIR=$withval
+	], [
+	    AMANDASTATEDIR=$localstatedir/amanda
+	]
+    )
+    AC_DEFINE_DIR([amandastatedir], [AMANDASTATEDIR],
+	[Directory in which amanda's run-time state is kept. ])
 ])
 
 # SYNOPSIS
@@ -275,5 +289,7 @@ AC_DEFUN([AMANDA_SHOW_DIRS_SUMMARY],
     echo "  GNU Tar lists: $GNUTAR_LISTED_INCREMENTAL_DIR"
     echo "  Perl modules (amperldir): $amperldir"
     echo "  Template and example data files (amdatadir): $amdatadir"
+    echo "  Run-time state files (amandastatedir): $amandastatedir"
+    echo "  Amanda home (.ssh) (amandahomedir): $amandahomedir"
     echo "  Temporary: $AMANDA_TMPDIR"
 ])

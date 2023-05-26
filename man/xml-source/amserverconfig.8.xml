@@ -47,7 +47,7 @@
 <refsect1><title>DESCRIPTION</title>
 <para>After Amanda rpms are successfully installed,
 	  &amserverconfig; will setup initial Amanda configuration files.
-It will create /var/lib/amanda/guntar-lists directory if one does
+It will create @amstatedir@/guntar-lists directory if one does
 	  not exist.
 &amserverconfig; does not change existing Amanda configurations.
 &amserverconfig; must be run by user amandabackup.
@@ -69,7 +69,7 @@ Example:  --templ=harddisk --tapedev /dev/nst0</para>
 		 <emphasis remap='B'>harddisk</emphasis>, <emphasis
 		remap='B'>single-tape</emphasis>, <emphasis remap='B'>tape-changer</emphasis> and <emphasis remap='B'>S3</emphasis> 
 		are the valid inputs for this option. Pre-configured template files can be found in 
-		/var/lib/amanda/template.d. This option may be combined with other options.
+		@amdatadir@/template.d. This option may be combined with other options.
 	        </para>
 <para>If tape-changer is chosen for this option, program mtx is required. &amserverconfig; will
 search for mtx in the following directory: "/usr/sbin", "/usr/local/sbin",
@@ -77,7 +77,7 @@ search for mtx in the following directory: "/usr/sbin", "/usr/local/sbin",
 </para>
 <para>
 If harddisk is chosen and --no-vtape is not specified, &amserverconfig; will create and label virtual tape
-file://var/lib/amanda/vtapes/$config.
+file:/@amstatedir@/vtapes/$config.
 </para>
   </listitem>
   </varlistentry>
@@ -94,7 +94,7 @@ file://var/lib/amanda/vtapes/$config.
   <term><option>--tapedev tapedev</option></term>
   <listitem>
 <para>The path name of non-rewinding tape device. 
-default [file://var/lib/amanda/vtapes/$config]  </para>
+default [file:/@amstatedir@/vtapes/$config]  </para>
   </listitem>
   </varlistentry>
 
@@ -115,7 +115,7 @@ default [file://var/lib/amanda/vtapes/$config]  </para>
   <varlistentry>
   <term><option>--changerfile changerfile</option></term>
   <listitem>
-<para>A tape changer configuration parameter. default [/etc/amanda/$config/changer.conf]  </para>
+<para>A tape changer configuration parameter. default [@CONFIG_DIR@/$config/changer.conf]  </para>
   </listitem>
   </varlistentry>
 
@@ -166,7 +166,7 @@ is supported.</para>
   <varlistentry>
   <term><option>--tapecycle tapecycle</option></term>
   <listitem>
-<para>The size of tape rotation. default [25]  </para>
+<para>The size of tape rotation. default [10]  </para>
   </listitem>
   </varlistentry>
 
@@ -184,49 +184,49 @@ is supported.</para>
 <refsect1><title>Files</title>
 <variablelist remap='TP'>
  <varlistentry>
- <term><option>/var/lib/amanda/template.d</option></term>
+ <term><option>@amdatadir@/template.d</option></term>
   <listitem>
 <para>Amanda configuration template files install location</para>
   </listitem>
   </varlistentry>
 
  <varlistentry>
- <term><option>/var/lib/amanda</option></term>
+ <term><option>@amandahomedir@</option></term>
   <listitem>
 <para>amandabackup home directory</para>
   </listitem>
   </varlistentry>
 
  <varlistentry>
- <term><option>/var/lib/amanda/gnutar-lists</option></term>
+ <term><option>@amstatedir@/gnutar-lists</option></term>
   <listitem>
 <para>A directory which contains backup timestamp and list of files backed up.</para>
   </listitem>
   </varlistentry>
 
  <varlistentry>
- <term><option>/etc/amanda/$config</option></term>
+ <term><option>@CONFIG_DIR@/$config</option></term>
   <listitem>
 <para>Amanda configuration files location for $config(e.g: DailySet1).</para>
   </listitem>
   </varlistentry>
 
  <varlistentry>
- <term><option>/etc/amanda/template.d</option></term>
+ <term><option>@CONFIG_DIR@/template.d</option></term>
   <listitem>
 <para>A directory contains dumptypes and tapetypes files used by all Amanda configurations.</para>
   </listitem>
   </varlistentry>
 
  <varlistentry>
- <term><option>/etc/amandates</option></term>
+ <term><option>@amandastatedir@/amandates</option></term>
   <listitem>
 <para>Amanda file on the client. It keeps track of structures of previous dumps.</para>
   </listitem>
   </varlistentry>
 
  <varlistentry>
- <term><option>/tmp/amanda</option></term>
+ <term><option>@AMANDA_DBGDIR@</option></term>
   <listitem>
 <para>directory contains Amanda debug log files.</para>
   </listitem>

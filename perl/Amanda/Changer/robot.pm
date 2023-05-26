@@ -165,7 +165,7 @@ sub new {
         my $safe_filename = "$self->{class_name}:$device_name";
         $safe_filename =~ tr/a-zA-Z0-9/-/cs;
         $safe_filename =~ s/^-*//;
-        $self->{'statefile'} = "$localstatedir/amanda/$safe_filename";
+        $self->{'statefile'} = "$amandastatedir/$safe_filename";
     }
     $self->_debug("using statefile '$self->{statefile}'");
     $self->{'lock-timeout'} = $config->{'lock-timeout'};

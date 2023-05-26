@@ -58,7 +58,7 @@ is still listed in the database but is no longer listed in the &tapelist;:</para
 
 <programlisting>
 # amcheckdb daily
-Tape DMP014 missing in /usr/local/etc/amanda//daily/tapelist
+Tape DMP014 missing in @CONFIG_DIR@/daily/tapelist
 Ready.
 </programlisting>
 </refsect1>

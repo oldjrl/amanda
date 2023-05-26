@@ -315,7 +315,7 @@ define application app_ampgsql {
   plugin "ampgsql"
   property "HOST" "localhost"
   property "ARCHIVEDIR" "/tmp/archivedir"
-  property "PASSFILE" "/etc/amanda/ampgsql.passwd"
+  property "PASSFILE" "@CONFIG_DIR@/ampgsql.passwd"
 }
 define dumptype dump_ampgsql {
   global

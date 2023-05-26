@@ -234,7 +234,7 @@ returned.</para>
 
 <programlisting remap='.nf'>
 % amgetconf daily logdir
-/usr/local/etc/amanda/daily/logs
+@CONFIG_DIR@/daily/logs
 </programlisting>
 
 <para>Find out the current tape type:</para>
@@ -261,7 +261,7 @@ DEC-DLT2000
 <para>Find out the configuration directory:</para>
 <programlisting remap='.nf'>
 % amgetconf build.CONFIG_DIR
-/usr/local/etc/amanda/
+@CONFIG_DIR@
 </programlisting>
 
 <para>List all build-time parameters</para>

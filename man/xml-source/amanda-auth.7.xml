@@ -202,8 +202,8 @@ configuration file.</para>
 <para>Example of amindexd and amidxtaped Amanda daemon services configured as their own network services for a 2.5.0 or earlier server or a newer server having 2.5.0 or earlier clients
 
 <programlisting>
-<emphasis remap='B'>   amandaidx stream tcp nowait amandabackup /usr/local/libexec/amanda/current/amindexd   amindexd</emphasis>
-<emphasis remap='B'>   amidxtape stream tcp nowait amandabackup /usr/local/libexec/amanda/current/amidxtaped amidxtaped</emphasis>
+<emphasis remap='B'>   amandaidx stream tcp nowait amandabackup @amlibexecdir@/amindexd   amindexd</emphasis>
+<emphasis remap='B'>   amidxtape stream tcp nowait amandabackup @amlibexecdir@/amidxtaped amidxtaped</emphasis>
 </programlisting>
 </para>
   </refsect2>
@@ -279,7 +279,7 @@ service amandaidx
 	wait			= no
 	user			= amanda
 	group			= disk
-	server			= /usr/local/libexec/amanda/amindexd 
+	server			= @amlibexecdir@/amindexd 
 	disable			= no
 }
 
@@ -290,7 +290,7 @@ service amidxtape
 	wait			= no
 	user			= amanda
 	group			= disk
-	server			= /usr/local/libexec/amanda/amidxtaped
+	server			= @amlibexecdir@/amidxtaped
 	disable			= no
 }
 
@@ -365,7 +365,7 @@ The kerberized AMANDA service uses a different port on the client hosts. The /et
 <para>And the /etc/inetd.conf line is:
 
 <programlisting>
-   k5amanda stream tcp nowait root /usr/local/libexec/amanda/amandad amandad -auth=krb5
+   k5amanda stream tcp nowait root @amlibexecdir@/amandad amandad -auth=krb5
 </programlisting>
 </para>
 
@@ -536,7 +536,7 @@ define dumptype rsh_example {
 
 <para>You can omit the from=.. option if you have too many clients to list, although this has obvious security implications.</para>
 
-<para>Set <amkeyword>ssh-keys</amkeyword> and any other necessary options in /etc/amanda/amanda_client.conf:
+<para>Set <amkeyword>ssh-keys</amkeyword> and any other necessary options in @CONFIG_DIR@/amanda_client.conf:
 
 <programlisting>
   auth "ssh"

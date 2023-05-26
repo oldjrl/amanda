@@ -48,12 +48,11 @@ sub config_ok {
     config_uninit();
 }
 
-my $amandahomedir="$localstatedir/lib/amanda";
 my $config = "TESTCONF";
 my $holding_exists = 0;
-$holding_exists = 1 if -d "$amandahomedir/holdings/$config";
+$holding_exists = 1 if -d "$amandastatedir/holdings/$config";
 my $vtapes_exists = 0;
-$vtapes_exists = 1 if -d "$amandahomedir/vtapes/$config";
+$vtapes_exists = 1 if -d "$amandastatedir/vtapes/$config";
 
 Installcheck::Run::cleanup();
 ok(run("$sbindir/amserverconfig", 'TESTCONF', '--template', 'S3'),
@@ -66,11 +65,11 @@ ok(run("$sbindir/amserverconfig", 'TESTCONF', '--template', 'harddisk'),
     "amserverconfig with harddisk template")
     or diag($Installcheck::Run::stdout);
 config_ok();
-if (!$holding_exists and -d "$amandahomedir/holdings/$config") {
-    rmtree("$amandahomedir/holdings/$config");
+if (!$holding_exists and -d "$amandastatedir/holdings/$config") {
+    rmtree("$amandastatedir/holdings/$config");
 }
-if (!$vtapes_exists and -d "$amandahomedir/vtapes/$config") {
-    rmtree("$amandahomedir/vtapes/$config");
+if (!$vtapes_exists and -d "$amandastatedir/vtapes/$config") {
+    rmtree("$amandastatedir/vtapes/$config");
 }
 
 Installcheck::Run::cleanup();
@@ -81,11 +80,11 @@ ok(run("$sbindir/amserverconfig", 'TESTCONF', '--template', 'harddisk',
     "amserverconfig with harddisk template and tapedev and tapecycle")
     or diag($Installcheck::Run::stdout);
 config_ok();
-if (!$holding_exists and -d "$amandahomedir/holdings/$config") {
-    rmtree("$amandahomedir/holdings/$config");
+if (!$holding_exists and -d "$amandastatedir/holdings/$config") {
+    rmtree("$amandastatedir/holdings/$config");
 }
-if (!$vtapes_exists and -d "$amandahomedir/vtapes/$config") {
-    rmtree("$amandahomedir/vtapes/$config");
+if (!$vtapes_exists and -d "$amandastatedir/vtapes/$config") {
+    rmtree("$amandastatedir/vtapes/$config");
 }
 
 
@@ -104,11 +103,11 @@ SKIP: {
 	or diag($Installcheck::Run::stdout);
     config_ok();
 }
-if (!$holding_exists and -d "$amandahomedir/holdings/$config") {
-    rmtree("$amandahomedir/holdings/$config");
+if (!$holding_exists and -d "$amandastatedir/holdings/$config") {
+    rmtree("$amandastatedir/holdings/$config");
 }
-if (!$vtapes_exists and -d "$amandahomedir/vtapes/$config") {
-    rmtree("$amandahomedir/vtapes/$config");
+if (!$vtapes_exists and -d "$amandastatedir/vtapes/$config") {
+    rmtree("$amandastatedir/vtapes/$config");
 }
 
 

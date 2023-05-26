@@ -87,6 +87,18 @@ AC_DEFUN([AMANDA_WITH_USER],
     AC_DEFINE_UNQUOTED(CLIENT_LOGIN,"$CLIENT_LOGIN",
         [Define as a the user to force to on client machines. ])
     AC_SUBST(CLIENT_LOGIN)
+
+    AC_ARG_WITH(amandahomedir,
+	AS_HELP_STRING([--with-amandahomedir[[[[[=PATH]]]]]],
+		[Amanda's home directory; default: ~$CLIENT_LOGIN]),
+	[
+	    AMANDAHOMEDIR=$withval
+	], [
+	    AMANDAHOMEDIR=`echo ~$CLIENT_LOGIN`
+	]
+    )
+    AC_DEFINE_DIR([amandahomedir], [AMANDAHOMEDIR],
+	[Amanda's home directory. ])
 ])
 
 # SYNOPSIS
