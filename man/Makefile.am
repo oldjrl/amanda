@@ -138,10 +138,8 @@ if   ENABLE_MANPAGE_BUILD
 # phase one of the documentation build expands some macros.
 # Push things through config,status to expand configure variables
 xml-source/%.proc.xml: $(SRCMANPAGEDIR)/%.xml $(srcdir)/xslt/expand-sambadoc.xsl entities/global.entities
-	xpf=`echo $@ | sed 's/\.proc\./.xpf./'`;\
-	$(top_builddir)/config.status --file=$$xpf:$<
-	xpf=`echo $@ | sed 's/\.proc\./.xpf./'`;\
-	$(XSLTPROC) $(XSLTPROC_FLAGS) --path "$(srcdir)/xslt/:$(builddir)/entities/" --xinclude --stringparam latex.imagebasedir "$*/" --stringparam noreference 1 --output $@ $(srcdir)/xslt/expand-sambadoc.xsl $$xpf
+	$(top_builddir)/config.status --file=-:$< | \
+	$(XSLTPROC) $(XSLTPROC_FLAGS) --path "$(srcdir)/xslt/:$(builddir)/entities/" --xinclude --stringparam latex.imagebasedir "$*/" --stringparam noreference 1 --output $@ $(srcdir)/xslt/expand-sambadoc.xsl -
 
 # phase two generates a manpage from the resulting "expanded" docbook XML
 %: xml-source/%.proc.xml $(srcdir)/xslt/man.xsl entities/global.entities
