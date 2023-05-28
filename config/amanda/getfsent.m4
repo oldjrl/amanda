@@ -12,6 +12,7 @@ AC_DEFUN([AMANDA_SETUP_GETFSENT], [
 	mntent.h \
 	mnttab.h \
 	sys/vfstab.h \
+	sys/dkio.h \
     )
 
     AC_CHECK_LIB(util,opendev)

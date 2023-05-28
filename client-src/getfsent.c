@@ -58,7 +58,11 @@
 #include <util.h>
 #include <sys/ioctl.h>
 #include <sys/disk.h>
+#if defined(HAVE_SYS_DKIO_H)
 #include <sys/dkio.h>
+#define USE_DISKMAP
+#include <sys/dkio.h>
+#endif
 #endif
 
 int
@@ -85,7 +89,7 @@ get_fstab_nextentry(
     if(!sys_fsent)
 	return 0;
     g_free(xfsname);
-#if defined(HAVE_LIBUTIL)
+#if defined(USE_DISKMAP)
     {
       char *realpath = NULL;
       int dm_fd = -1;
