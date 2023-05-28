@@ -143,6 +143,22 @@ AC_DEFUN([AMANDA_WITH_TMPDIR],
         [The directory in which Amanda should create temporary files. ])
 ])
 
+AC_DEFUN([AMANDA_WITH_AMANDASTATEDIR],
+[
+
+    AC_ARG_WITH(amandastatedir,
+	AS_HELP_STRING([--with-amandastatedir[[[[[=PATH]]]]]],
+		[Where amanda's run-time status is kept; default: $localstatedir/amanda]),
+	[
+	    AMANDASTATEDIR=$withval
+	], [
+	    AMANDASTATEDIR=$localstatedir/amanda
+	]
+    )
+    AC_DEFINE_DIR([amandastatedir], [AMANDASTATEDIR],
+	[Directory in which amanda's run-time state is kept. ])
+])
+
 # SYNOPSIS
 #
 #   AMANDA_EXPAND_DIRS
@@ -259,18 +275,6 @@ AC_DEFUN([AMANDA_EXPAND_DIRS],
     )
     AC_DEFINE_DIR([amdatadir], [AMDATADIR],
 	[Directory in which amanda's templates and examples are installed. ])
-
-    AC_ARG_WITH(amandastatedir,
-	AS_HELP_STRING([--with-amandastatedir[[[[[=PATH]]]]]],
-		[Where amanda's run-time status is kept; default: $localstatedir/amanda]),
-	[
-	    AMANDASTATEDIR=$withval
-	], [
-	    AMANDASTATEDIR=$localstatedir/amanda
-	]
-    )
-    AC_DEFINE_DIR([amandastatedir], [AMANDASTATEDIR],
-	[Directory in which amanda's run-time state is kept. ])
 ])
 
 # SYNOPSIS
