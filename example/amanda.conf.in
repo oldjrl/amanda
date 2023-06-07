@@ -637,7 +637,7 @@ define dumptype server-encrypt-fast {
    comment "fast client compression and server symmetric encryption"
    compress client fast
    encrypt server
-   server_encrypt "/usr/sbin/amcrypt"
+   server_encrypt "@sbindir@/amcrypt"
    server_decrypt_option "-d"
 }
 
@@ -647,7 +647,7 @@ define dumptype client-encrypt-nocomp {
    comment "no compression and client symmetric encryption"
    compress none
    encrypt client
-   client_encrypt "/usr/sbin/amcrypt"
+   client_encrypt "@sbindir@/amcrypt"
    client_decrypt_option "-d"
 }
 
@@ -661,7 +661,7 @@ define dumptype client-encrypt-nocomp {
 #    comment "server public-key encryption, dumped with tar"
 #    compress none
 #    encrypt server
-#    server_encrypt "/usr/sbin/amgpgcrypt"
+#    server_encrypt "@sbindir@/amgpgcrypt"
 #    server_decrypt_option "-d"
 #}
 
