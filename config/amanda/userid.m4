@@ -94,7 +94,7 @@ AC_DEFUN([AMANDA_WITH_USER],
 	[
 	    AMANDAHOMEDIR=$withval
 	], [
-	    AMANDAHOMEDIR=`echo ~$CLIENT_LOGIN`
+	    AMANDAHOMEDIR=`sh -c "echo ~$CLIENT_LOGIN"`
 	]
     )
     AC_DEFINE_DIR([amandahomedir], [AMANDAHOMEDIR],
