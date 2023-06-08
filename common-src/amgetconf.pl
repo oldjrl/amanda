@@ -41,7 +41,7 @@ use Getopt::Long;
 
 sub usage {
     print <<EOF;
-Usage: amgetconf [--platform] [--distro] [--client] [--execute-where client|server] [-l|--list] [-o configoption]* <config> <paramname>
+Usage: amgetconf [--platform] [--distro] [--client] [--execute-where client|server] [-l|--list] [--dump] [-o configoption]* <config> <paramname>
   (any ordering of options and arguments is acceptable)
 
 --client is equivalent to --execute-where client
@@ -228,9 +228,13 @@ sub db_param {
 ## regular configuration parameters
 
 sub conf_param {
-    my ($parameter, $opt_list) = @_;
+    my ($parameter, $opt_list, $opt_dump) = @_;
 
-    if ($opt_list) {
+    if ($opt_dump) {
+	my $print_default = 1;
+	my $print_source = 1;
+	Amanda::Config::dump_configuration($print_default, $print_source);
+    } elsif ($opt_list) {
 	# getconf_list will return an empty list for any unrecognized name,
 	# so first check that the user has supplied a real subsection
 	no_such_param($parameter)
@@ -278,7 +282,7 @@ my $config_overrides = new_config_overrides($#ARGV+1);
 my $execute_where = undef;
 my $opt_platform,
 my $opt_distro,
-
+my $opt_dump = '';
 debug("Arguments: " . join(' ', @ARGV));
 Getopt::Long::Configure(qw{bundling});
 GetOptions(
@@ -301,7 +305,8 @@ GetOptions(
         fail("--execute-where=server conflicts with --execute-where=client or --client.")
             unless !defined($execute_where) || $execute_where;
         $execute_where = $CONFIG_INIT_CLIENT;
-    }
+    },
+    'dump' => \$opt_dump
 ) or usage();
 
 my $config_name;
@@ -376,6 +381,6 @@ if ($execute_where != $CONFIG_INIT_CLIENT && defined $config_name) {
     }
 }
 
-conf_param($parameter, $opt_list);
+conf_param($parameter, $opt_list, $opt_dump);
 
 Amanda::Util::finish_application();

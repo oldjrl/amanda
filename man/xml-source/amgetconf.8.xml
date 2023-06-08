@@ -29,6 +29,7 @@
 <cmdsynopsis>
   <command>amgetconf</command>    
     <arg choice='opt'><replaceable>-l|--list</replaceable></arg>
+    <arg choice='opt'><replaceable>--dump</replaceable></arg>
     <arg choice='opt'><replaceable>--platform</replaceable></arg>
     <arg choice='opt'><replaceable>--distro</replaceable></arg>
     <arg choice='opt'><replaceable>--client</replaceable></arg>
@@ -79,6 +80,11 @@ the name of the disired parameter within that subsection.</para>
 
 <para>The <literal>--list</literal> option lists the subsections of
 a certain type, where the type is givein as the parameter.</para>
+
+<para>The <literal>--dump</literal> option will print the specified
+configuration in a format suitable for creating an <filename>amanda.conf</filename> file.</para>
+<note>This application requires two arguments for the <literal>--dump</literal> option, even though only the first (the configuration) is used.
+</note>
 
 <para>The <literal>--client</literal> option is equivalent to 
 <literal>--execute-where client</literal> (below).</para>
@@ -270,6 +276,18 @@ DEC-DLT2000
 AIX_BACKUP
 AMANDA_DBGDIR
 AMANDA_DEBUG_DAYS
+...
+</programlisting>
+
+<para>Dump the specified configuration</para>
+<programlisting remap='.nf'>
+% amgetconf --dump DailySet1 all
+# AMANDA CONFIGURATION FROM FILE '/usr/local/etc/amanda/DailySet1/amanda.conf':
+
+ORG                   "example.org"     (file /usr/local/etc/amanda/DailySet1/amanda.conf line 1)
+MAILTO                "operator"     (file /usr/local/etc/amanda/DailySet1/amanda.conf line 2)
+DUMPUSER              "operator"     (default)
+PRINTER               ""     (default)
 ...
 </programlisting>
 
