@@ -204,6 +204,8 @@ static int find_sched(schedlist_t *list, sched_t *sp);
 static sched_t *dequeue_sched(schedlist_t *list);
 static void remove_sched(schedlist_t *list, sched_t *sp);
 
+volatile int debugwait = 0;
+
 int
 main(
     int		argc,
@@ -238,6 +240,15 @@ main(
     if (argc > 1 && argv && argv[1] && g_str_equal(argv[1], "--version")) {
 	printf("driver-%s\n", VERSION);
 	return (0);
+    }
+
+    /* Should we wait for a debugger to attach at startup? */
+    if (argc > 1 && argv && argv[1] && g_str_equal(argv[1], "--debugwait")) {
+      debugwait = 1;
+      while (debugwait)
+	sleep(30);
+      argv++;
+      argc--;
     }
 
     glib_init();
