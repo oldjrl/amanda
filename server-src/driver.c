@@ -1795,8 +1795,7 @@ start_some_dumps(
 		/* check the taper is alive */
 		if (sp->prefered_taper) {
 		    if (!sp->prefered_taper->storage_name || !sp->prefered_taper->flush_storage ||
-			sp->prefered_taper->degraded_mode || sp->prefered_taper->down ||
-			sp->prefered_taper->current_tape >= sp->prefered_taper->runtapes) {
+			sp->prefered_taper->degraded_mode || sp->prefered_taper->down) {
 			sp->prefered_taper = NULL;
 		    }
 		}
@@ -1804,8 +1803,7 @@ start_some_dumps(
 		if (!sp->prefered_taper) {
 		    for (taper = tapetable; taper < tapetable+nb_storage && !sp_accept; taper++) {
 			if (taper->storage_name && taper->flush_storage &&
-			    !taper->degraded_mode && !taper->down &&
-			    taper->current_tape < taper->runtapes) {
+			    !taper->degraded_mode && !taper->down) {
 			    if (dump_match_selection(taper->storage_name, sp)) {
 				sp->prefered_taper = taper;
 				break;
@@ -1817,8 +1815,7 @@ start_some_dumps(
 	    sp = NULL;
 	    for (taper = tapetable; taper < tapetable+nb_storage && !sp_accept; taper++) {
 		if (!taper->storage_name || !taper->flush_storage ||
-		    taper->degraded_mode || taper->down ||
-		    taper->current_tape >= taper->runtapes) {
+		    taper->degraded_mode || taper->down) {
 		    continue;
 		}
 		sp_accept = NULL;
@@ -5622,11 +5619,12 @@ tape_action(
 	    /* shortcut, will trigger taperflush_criteria and/or flush_criteria */
 	    new_data += 1;
 	} else {
+	    int t_dle = new_dle;
 	    /* sum the size of the first new-dle in tapeq */
 	    /* they should be the reverse taperalgo       */
 	    for (slist = taper->tapeq.head;
-		 slist != NULL && new_dle > 0;
-		 slist = slist->next, new_dle--) {
+		 slist != NULL && t_dle > 0;
+		 slist = slist->next, t_dle--) {
 		sp = get_sched(slist);
 		new_data += sp->act_size;
 	    }
