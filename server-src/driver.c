@@ -142,7 +142,7 @@ static int queue_length(schedlist_t *q);
 static void read_flush(void *cookie);
 static void read_schedule(void *cookie);
 static void set_vaultqs(void);
-static void short_dump_state(void);
+static void short_dump_state(const char * prefix);
 static void start_a_flush_wtaper(wtaper_t    *wtaper,
                                  gboolean    *state_changed);
 static void start_a_flush_taper(taper_t    *taper);
@@ -599,21 +599,21 @@ main(
     schedule_done = no_dump;
     force_flush = 0;
 
-    short_dump_state();
+    short_dump_state("main-start");
     event_loop(0);
-    short_dump_state();
+    short_dump_state("main-done");
 
     force_flush = 1;
 
     /* mv runq to directq */
-    short_dump_state();
+    short_dump_state("move-runq-todirectq-start");
     g_printf("Move runq to directq\n");
     while (!empty(runq)) {
 	sched_t *sp = dequeue_sched(&runq);
 	sp->action = ACTION_DUMP_TO_TAPE;
 	headqueue_sched(&directq, sp);
     }
-    short_dump_state();
+    short_dump_state("move-runq-todirectq-end");
 
     run_server_global_scripts(EXECUTE_ON_POST_BACKUP, get_config_name(),
 			      driver_timestamp);
@@ -694,12 +694,12 @@ main(
 	amfree(qname);
     }
 
-    short_dump_state();
+    short_dump_state("main-pre-vault");
 
     if (!no_vault) {
 	nb_storage = startup_vault_tape_process(taper_program, no_taper);
 	set_vaultqs();
-	short_dump_state();
+	short_dump_state("main-vault");
 	/* close device for storage */
 	for (taper = tapetable; taper < tapetable+nb_storage ; taper++) {
 	    if (!taper->degraded_mode && taper->storage_name &&
@@ -728,7 +728,7 @@ main(
 
 	/* wait for the device to be closed */
 	event_loop(0);
-	short_dump_state();
+	short_dump_state("main-vault-post-loop");
 
 	/* quit no-vault storage */
 	for (taper = tapetable; taper < tapetable+nb_storage ; taper++) {
@@ -752,13 +752,13 @@ main(
 	    }
 	}
 
-	short_dump_state();
+	short_dump_state("main-post-vault");
 
 	start_a_vault();
 	event_loop(0);
     }
 
-    short_dump_state();				/* for amstatus */
+    short_dump_state("main-pre-close");				/* for amstatus */
 
     /* close device for storage */
     for (taper = tapetable; taper < tapetable+nb_storage ; taper++) {
@@ -786,7 +786,7 @@ main(
     }
 
     event_loop(0);
-    short_dump_state();				/* for amstatus */
+    short_dump_state("main-post-close");				/* for amstatus */
 
     g_printf(_("driver: QUITTING time %s telling children to quit\n"),
            walltime_str(curclock()));
@@ -1071,7 +1071,7 @@ start_a_flush_taper(
 	}
 
     if (state_changed) {
-	short_dump_state();
+	short_dump_state("start_a_flush_taper-state-changed");
     }
 }
 
@@ -1397,7 +1397,7 @@ start_a_vault_taper(
 	}
 
     if (state_changed) {
-	short_dump_state();
+	short_dump_state("start_a_vault_taper-state-changed");
     }
 }
 
@@ -1966,7 +1966,7 @@ start_some_dumps(
 	    sp->disk->host->start_t = now + HOST_DELAY;
 	    if (empty(*rq) && active_dumper() == 0) { force_flush = 1;}
 
-	    short_dump_state();
+	    short_dump_state("start_some_dumps-sp-chunker-notaper");
 	} else if (sp != NULL && wtaper != NULL) { /* dump to tape */
 	    job_t *job = alloc_job();
 
@@ -2038,7 +2038,7 @@ start_some_dumps(
 	}
     }
     if (state_changed) {
-	short_dump_state();
+	short_dump_state("start_some_dumps-state-changed");
     }
 }
 
@@ -2279,7 +2279,7 @@ handle_taper_result(
 
     do {
 
-	short_dump_state();
+	short_dump_state("handle_taper_result-do-loop");
 	sp = NULL;
 	dp = NULL;
 	job = NULL;
@@ -3612,7 +3612,7 @@ handle_dumper_result(
 
     do {
 
-	short_dump_state();
+	short_dump_state("handle_dumper_result-do-loop");
 
 	cmd = getresult(dumper->fd, 1, &result_argc, &result_argv);
 
@@ -3835,7 +3835,7 @@ handle_chunker_result(
     assert(chunker != NULL);
 
     do {
-	short_dump_state();
+	short_dump_state("handle_chunker_result-do-loop");
 
 	job = NULL;
 	sp = NULL;
@@ -5393,7 +5393,7 @@ queue_length(
 }
 
 static void
-short_dump_state(void)
+short_dump_state(const char *prefix)
 {
     int      i, nidle;
     char    *wall_time;
@@ -5401,7 +5401,7 @@ short_dump_state(void)
 
     wall_time = walltime_str(curclock());
 
-    g_printf(_("driver: state time %s "), wall_time);
+    g_printf(_("driver: %s state time %s "), prefix, wall_time);
     g_printf(_("free kps: %lu space: %lld taper: "),
 	   network_free_kps(NULL),
 	   (long long)holding_free_space());
@@ -5635,7 +5635,7 @@ tape_action(
     driver_debug(2, _("new_data: %lld\n"), (long long)new_data);
     driver_debug(2, _("data_free: %lld\n"), (long long)data_free);
     driver_debug(2, _("data_lost: %lld\n"), (long long)data_lost);
-;
+
     tapeq_size -= data_free;
     tapeq_size += new_data;
     driver_debug(2, _("tapeq_size: %lld\n"), (long long)tapeq_size);
@@ -5686,7 +5686,7 @@ tape_action(
     driver_debug(2, "wtaper->state %d\n", wtaper->state);
     driver_debug(2, "taper->vaultqss %p\n", taper->vaultqss);
 
-driver_debug(2, "%d  R%d W%d D%d I%d\n", wtaper->state, TAPER_STATE_TAPE_REQUESTED, TAPER_STATE_WAIT_FOR_TAPE, TAPER_STATE_DUMP_TO_TAPE, TAPER_STATE_IDLE);
+    driver_debug(2, "%d  R%d W%d D%d I%d\n", wtaper->state, TAPER_STATE_TAPE_REQUESTED, TAPER_STATE_WAIT_FOR_TAPE, TAPER_STATE_DUMP_TO_TAPE, TAPER_STATE_IDLE);
     // Changing conditionals can produce a driver hang, take care.
     //
     // when to start writing to a new tape
