@@ -159,6 +159,7 @@ static int no_taper_flushing(void);
 static int active_dumper(void);
 static void fix_index_header(sched_t *sp);
 static int all_tapeq_empty(void);
+static gboolean is_volume_done(taper_t *taper);
 static gboolean is_label_in_use(char *label);
 static void add_label_in_use(char *label);
 static void remove_label_in_use(char *label);
@@ -709,12 +710,6 @@ main(
 		     wtaper++) {
 		    if (wtaper->state & TAPER_STATE_RESERVATION) {
 			if (wtaper->current_dest_label) {
-			    if (taper->nb_wait_reply == 0) {
-				taper->ev_read = event_create(taper->fd,
-						EV_READFD,
-						handle_taper_result, taper);
-				event_activate(taper->ev_read);
-			    }
 			    taper->nb_wait_reply++;
 			    wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
 			    taper_cmd(taper, wtaper, CLOSE_VOLUME, NULL, NULL, 0, NULL);
@@ -743,9 +738,6 @@ main(
 		wtaper->state = TAPER_STATE_INIT;
 		if (taper->nb_wait_reply == 0) {
 		    taper->nb_wait_reply++;
-		    taper->ev_read = event_create(taper->fd, EV_READFD,
-						  handle_taper_result, taper);
-		    event_activate(taper->ev_read);
 		}
 		taper->nb_scan_volume++;
 		taper_cmd(taper, wtaper, START_TAPER, NULL, taper->wtapetable[0].name, 0, driver_timestamp);
@@ -768,12 +760,6 @@ main(
 		 wtaper++) {
 		if (wtaper->state & TAPER_STATE_RESERVATION) {
 		    if (wtaper->current_dest_label) {
-			if (taper->nb_wait_reply == 0) {
-			    taper->ev_read = event_create(taper->fd,
-						EV_READFD,
-						handle_taper_result, taper);
-			    event_activate(taper->ev_read);
-			}
 			taper->nb_wait_reply++;
 			wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
 			taper_cmd(taper, wtaper, CLOSE_VOLUME, NULL, NULL, 0, NULL);
@@ -1318,11 +1304,6 @@ start_a_flush_wtaper(
 	    wtaper->state &= ~TAPER_STATE_IDLE;
 	    wtaper->state |= TAPER_STATE_FILE_TO_TAPE;
 	    qname = quote_string(dp->name);
-	    if (taper->nb_wait_reply == 0) {
-		taper->ev_read = event_create(taper->fd, EV_READFD,
-					      handle_taper_result, taper);
-		event_activate(taper->ev_read);
-	    }
 	    taper->nb_wait_reply++;
 	    wtaper->nb_dle++;
 	    if (!(wtaper->state & TAPER_STATE_TAPE_STARTED)) {
@@ -1529,11 +1510,6 @@ start_a_vault_wtaper(
 	    wtaper->state &= ~TAPER_STATE_IDLE;
 	    wtaper->state |= TAPER_STATE_VAULT_TO_TAPE;
 	    qname = quote_string(dp->name);
-	    if (taper->nb_wait_reply == 0) {
-		taper->ev_read = event_create(taper->fd, EV_READFD,
-					      handle_taper_result, taper);
-		event_activate(taper->ev_read);
-	    }
 	    taper->nb_wait_reply++;
 	    wtaper->nb_dle++;
 	    if (!(wtaper->state & TAPER_STATE_TAPE_STARTED)) {
@@ -2007,11 +1983,6 @@ start_some_dumps(
 		wtaper->nb_dle = 1;
 		wtaper->left = taper->tape_length;
 	    }
-	    if (taper->nb_wait_reply == 0) {
-		taper->ev_read = event_create(taper->fd, EV_READFD,
-					      handle_taper_result, taper);
-	    event_activate(taper->ev_read);
-	    }
 
 	    taper->nb_wait_reply++;
 	    if (sp->disk->data_path == DATA_PATH_DIRECTTCP ||
@@ -2252,6 +2223,67 @@ all_tapeq_empty(void)
     return 1;
 }
 
+/* Have we finished writing everything to this volume? */
+static gboolean
+is_volume_done(taper_t *taper)
+{
+    wtaper_t *wtaper;
+    gboolean done = TRUE;
+    TaperState available = TAPER_STATE_DEFAULT|TAPER_STATE_INIT|TAPER_STATE_RESERVATION|TAPER_STATE_IDLE|TAPER_STATE_DONE|TAPER_STATE_TAPE_STARTED;
+    char *storage_name = taper->storage_name;
+    GList  *slist;
+    dumper_t *dumper;
+    sched_t *sp;
+
+    /* Are there any planned dumps to this taper/volume? */
+    for (slist = runq.head; slist != NULL; slist = slist->next) {
+	sp = get_sched(slist);
+	if (sp->prefered_taper == taper || dump_match_selection(storage_name, sp)) {
+	    done = FALSE;
+	    break;
+	}
+    }
+
+    /* Ae there any dumpers that will use this storage? */
+    for (dumper = dmptable; dumper < (dmptable+inparallel); dumper++) {
+        if (dumper->job && dumper->job->wtaper &&
+	    (dumper->job->wtaper->taper == taper ||
+	     (dumper->job->sched && 
+	      (dumper->job->sched->prefered_taper == taper || dump_match_selection(storage_name, dumper->job->sched))))
+	     ) {
+	    done = FALSE;
+	    break;
+	}
+    }
+
+    /* Are there any direct dumps to this volume/taper? */
+    for (slist = directq.head; slist != NULL; slist = slist->next) {
+	sp = get_sched(slist);
+	if (sp->prefered_taper == taper || dump_match_selection(storage_name, sp)) {
+	    done = FALSE;
+	    break;
+	}
+    }
+
+    /* Ensure we have nothing on our tapeq */
+    if (!empty(taper->tapeq)) {
+        done = FALSE;
+    } else {
+        /* Ensure all our workers are not busy */
+        for (wtaper = taper->wtapetable;
+	     wtaper < taper->wtapetable + taper->nb_worker;
+	     wtaper++) {
+	  /* We currently can't use wtaper->ready since it isn't set
+	     if the worker has never been used. */
+	  if (wtaper->state & ~available) {
+	      done = FALSE;
+	      break;
+	  }
+	}
+    }
+    return done;
+}
+
 static void
 handle_taper_result(
 	void *cookie)
@@ -2322,10 +2354,7 @@ handle_taper_result(
 	    taper->nb_wait_reply--;
 	    taper->nb_scan_volume--;
 	    taper->last_started_wtaper = wtaper;
-	    if (taper->nb_wait_reply == 0) {
-		event_release(taper->ev_read);
-		taper->ev_read = NULL;
-	    }
+
 	    start_some_dumps(&runq);
 	    start_a_flush();
 	    start_a_vault();
@@ -2595,11 +2624,6 @@ handle_taper_result(
 		    wtaper1->state == TAPER_STATE_DEFAULT &&
 		    tape_action(wtaper1, NULL, FALSE) == TAPE_ACTION_START_TAPER) {
 		    wtaper1->state = TAPER_STATE_INIT;
-		    if (taper->nb_wait_reply == 0) {
-			taper->ev_read = event_create(taper->fd, EV_READFD,
-						handle_taper_result, NULL);
-			event_activate(taper->ev_read);
-		    }
 		    taper->nb_wait_reply++;
 		    taper->nb_scan_volume++;
 		    taper_cmd(taper, wtaper1, START_TAPER, NULL, wtaper1->name, 0,
@@ -2676,10 +2700,6 @@ handle_taper_result(
 
 		taper->nb_wait_reply--;
 		taper->nb_scan_volume--;
-	    }
-	    if (taper->nb_wait_reply == 0) {
-		event_release(taper->ev_read);
-		taper->ev_read = NULL;
 	    }
 	    taper->degraded_mode = TRUE;
 	    start_degraded_mode(&runq);
@@ -2761,10 +2781,12 @@ handle_taper_result(
 		    wtaper->job = NULL;
 		}
 	    }
-
-	    if (taper->nb_wait_reply == 0) {
-		event_release(taper->ev_read);
-		taper->ev_read = NULL;
+	    /* We aren't going to hear anything else from this taper.
+	       Clear its read event.
+	    */
+	    if (taper->ev_read != NULL) {
+	      event_release(taper->ev_read);
+	      taper->ev_read = NULL;
 	    }
 
 	    continue_port_dumps();
@@ -2801,10 +2823,7 @@ handle_taper_result(
 		    wtaper->job = NULL;
 		}
 	    }
-	    if (taper->nb_wait_reply == 0) {
-		event_release(taper->ev_read);
-		taper->ev_read = NULL;
-	    }
+
 	    continue_port_dumps();
 	    start_some_dumps(&runq);
 	    start_a_flush();
@@ -2849,11 +2868,6 @@ handle_taper_result(
 	    }
 	    wtaper = NULL;
 
-            if(taper->ev_read != NULL) {
-                event_release(taper->ev_read);
-                taper->ev_read = NULL;
-		taper->nb_wait_reply = 0;
-            }
 	    taper->degraded_mode = TRUE;
 	    start_degraded_mode(&runq);
             taper->tapeq.head = taper->tapeq.tail = NULL;
@@ -2870,12 +2884,6 @@ handle_taper_result(
 	g_strfreev(result_argv);
 
 	if (wtaper && job && job->sched && wtaper->result != LAST_TOK) {
-	    if (wtaper->nb_dle >= taper->max_dle_by_volume) {
-		taper->nb_wait_reply++;
-		wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
-		taper_cmd(taper, wtaper, CLOSE_VOLUME, job->sched, NULL, 0, NULL);
-		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
-	    }
 	    if (job->sched->action == ACTION_DUMP_TO_TAPE) {
 		assert(job->dumper != NULL);
 		if (job->dumper->result != LAST_TOK) {
@@ -2888,6 +2896,14 @@ handle_taper_result(
 		vault_taper_result(job);
 	    } else {
 		g_critical("Invalid job->sched->action %s %s %d", job->sched->disk->host->hostname, job->sched->disk->name, job->sched->action);
+	    }
+	    if (wtaper->nb_dle >= taper->max_dle_by_volume ||
+		(wtaper->result == DONE && is_volume_done(taper))
+		) {
+		taper->nb_wait_reply++;
+		wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
+		taper_cmd(taper, wtaper, CLOSE_VOLUME, job->sched, NULL, 0, NULL);
+		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
 	    }
 	}
 
@@ -3022,10 +3038,6 @@ vault_taper_result(
     }
 
     taper->nb_wait_reply--;
-    if (taper->nb_wait_reply == 0) {
-        event_release(taper->ev_read);
-        taper->ev_read = NULL;
-    }
 
     /* continue with those dumps waiting for diskspace */
     continue_port_dumps();
@@ -3179,10 +3191,6 @@ file_taper_result(
     amfree(wtaper->input_error);
     amfree(wtaper->tape_error);
     taper->nb_wait_reply--;
-    if (taper->nb_wait_reply == 0) {
-	event_release(taper->ev_read);
-	taper->ev_read = NULL;
-    }
 
     /* continue with those dumps waiting for diskspace */
     continue_port_dumps();
@@ -3291,10 +3299,6 @@ dumper_taper_result(
 	dumper->ev_read = NULL;
     }
     taper->nb_wait_reply--;
-    if (taper->nb_wait_reply == 0 && taper->ev_read != NULL) {
-	event_release(taper->ev_read);
-	taper->ev_read = NULL;
-    }
     wtaper->state &= ~TAPER_STATE_DUMP_TO_TAPE;
     if (!(wtaper->state & (TAPER_STATE_WAIT_CLOSED_VOLUME|TAPER_STATE_WAIT_CLOSED_SOURCE_VOLUME))) {
 	wtaper->state |= TAPER_STATE_IDLE;
