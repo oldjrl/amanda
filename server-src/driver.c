@@ -2887,12 +2887,6 @@ handle_taper_result(
 	g_strfreev(result_argv);
 
 	if (wtaper && job && job->sched && wtaper->result != LAST_TOK) {
-	    if (wtaper->nb_dle >= taper->max_dle_by_volume) {
-		taper->nb_wait_reply++;
-		wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
-		taper_cmd(taper, wtaper, CLOSE_VOLUME, job->sched, NULL, 0, NULL);
-		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
-	    }
 	    if (job->sched->action == ACTION_DUMP_TO_TAPE) {
 		assert(job->dumper != NULL);
 		if (job->dumper->result != LAST_TOK) {
@@ -2905,6 +2899,14 @@ handle_taper_result(
 		vault_taper_result(job);
 	    } else {
 		g_critical("Invalid job->sched->action %s %s %d", job->sched->disk->host->hostname, job->sched->disk->name, job->sched->action);
+	    }
+	    if (wtaper->nb_dle >= taper->max_dle_by_volume ||
+		(wtaper->result == DONE && is_volume_done(taper))
+		) {
+		taper->nb_wait_reply++;
+		wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
+		taper_cmd(taper, wtaper, CLOSE_VOLUME, job->sched, NULL, 0, NULL);
+		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
 	    }
 	}
 
