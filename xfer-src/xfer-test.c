@@ -524,8 +524,8 @@ source_listen_thread(
 	error("socket(): %s", strerror(errno));
     }
     if (connect(sock, (struct sockaddr *)addrs, SS_LEN(addrs)) < 0) {
-	error("source_listen_thread - connect(%d, 0x%x (%s), %d): %s",
-	      sock, addrs, str_sockaddr(addrs), SS_LEN(addrs),
+	error("source_listen_thread - connect(%d, 0x%lx (%s), %ld): %s",
+	      sock, (unsigned long)addrs, str_sockaddr(addrs), SS_LEN(addrs),
 	      strerror(errno));
     }
 
@@ -1383,8 +1383,8 @@ dest_connect_thread(
 	error("socket(): %s", strerror(errno));
     }
     if (connect(sock, (struct sockaddr *)&addr, SS_LEN(&addr)) < 0) {
-	error("dest_connect_thread - connect(%d, 0x%x (%s), %d): %s",
-	      sock, &addr, str_sockaddr(&addr), SS_LEN(&addr),
+	error("dest_connect_thread - connect(%d, 0x%lx (%s), %ld): %s",
+	      sock, (unsigned long)&addr, str_sockaddr(&addr), SS_LEN(&addr),
 		 strerror(errno));
     }
 

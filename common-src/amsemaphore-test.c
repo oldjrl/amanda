@@ -56,7 +56,7 @@ test_decr_wait(void)
     struct test_decr_wait_data data = { NULL, FALSE };
     int rv;
 
-    data.sem = amsemaphore_new_with_value(10),
+    data.sem = amsemaphore_new_with_value(10);
 
     th = g_thread_create(test_decr_wait_thread, (gpointer)&data, TRUE, NULL);
 
