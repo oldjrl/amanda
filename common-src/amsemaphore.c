@@ -25,18 +25,21 @@
 
 #include "amanda.h"
 #include "amsemaphore.h"
+#include "glib-util.h"
 
 amsemaphore_t* amsemaphore_new_with_value(int value) {
     amsemaphore_t *rval;
 
+#if (!(GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32)))
     if (!g_thread_supported())
         return NULL;
+#endif
 
     rval = malloc(sizeof(*rval));
     rval->value = value;
-    rval->mutex = g_mutex_new();
-    rval->decrement_cond = g_cond_new();
-    rval->zero_cond = g_cond_new();
+    rval->mutex = G_MUTEX_NEW();
+    rval->decrement_cond = G_COND_NEW();
+    rval->zero_cond = G_COND_NEW();
     
     if (rval->mutex == NULL || rval->decrement_cond == NULL ||
         rval->zero_cond == NULL) {
@@ -48,9 +51,18 @@ amsemaphore_t* amsemaphore_new_with_value(int value) {
 }
 
 void amsemaphore_free(amsemaphore_t* o) {
-    g_mutex_free(o->mutex);
-    g_cond_free(o->decrement_cond);
-    g_cond_free(o->zero_cond);
+    if (o->mutex) {
+        G_MUTEX_FREE(o->mutex);
+	o->mutex = NULL;
+    }
+    if (o->decrement_cond) {
+        G_COND_FREE(o->decrement_cond);
+	o->decrement_cond = NULL;
+    }
+    if (o->zero_cond) {
+        G_COND_FREE(o->zero_cond);
+	o->zero_cond = NULL;
+    }
     free(o);
 }
 

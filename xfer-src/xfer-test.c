@@ -143,7 +143,7 @@ source_readfd_start_impl(
     XferElement *elt)
 {
     XferSourceReadfd *self = XFER_SOURCE_READFD(elt);
-    self->thread = g_thread_create(source_readfd_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-readfd", source_readfd_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -244,7 +244,7 @@ source_writefd_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(source_writefd_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-writefd", source_writefd_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -344,7 +344,7 @@ source_push_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(source_push_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-push", source_push_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -564,7 +564,7 @@ source_listen_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(source_listen_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-listen", source_listen_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -718,7 +718,7 @@ source_connect_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(source_connect_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-connect", source_connect_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -830,7 +830,7 @@ dest_readfd_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(dest_readfd_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-readfd", dest_readfd_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -953,7 +953,7 @@ dest_writefd_start_impl(
     XferElement *elt)
 {
     XferDestWritefd *self = XFER_DEST_WRITEFD(elt);
-    self->thread = g_thread_create(dest_writefd_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-writefd", dest_writefd_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -1154,7 +1154,7 @@ dest_pull_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(dest_pull_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-pull", dest_pull_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -1302,7 +1302,7 @@ dest_listen_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(dest_listen_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-listen", dest_listen_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -1427,7 +1427,7 @@ dest_connect_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(dest_connect_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-connect", dest_connect_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }

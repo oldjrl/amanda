@@ -58,7 +58,8 @@ test_decr_wait(void)
 
     data.sem = amsemaphore_new_with_value(10);
 
-    th = g_thread_create(test_decr_wait_thread, (gpointer)&data, TRUE, NULL);
+    th = G_THREAD_CREATE("test_decr_wait", test_decr_wait_thread, (gpointer)&data,
+			 TRUE, NULL);
 
     /* sleep to give amsemaphore_decrement() a chance to block (or not). */
     g_usleep(G_USEC_PER_SEC / 4);
@@ -108,7 +109,8 @@ test_wait_empty(void)
     amsemaphore_t *sem = amsemaphore_new_with_value(10);
     int rv;
 
-    th = g_thread_create(test_wait_empty_thread, (gpointer)sem, TRUE, NULL);
+    th = G_THREAD_CREATE("test-wait-empty", test_wait_empty_thread, (gpointer)sem,
+			 TRUE, NULL);
 
     /* sleep to give amsemaphore_decrement() a chance to block (or not). */
     g_usleep(G_USEC_PER_SEC / 4);
@@ -152,7 +154,8 @@ test_force_adjust(void)
     GThread *th;
     amsemaphore_t *sem = amsemaphore_new_with_value(10);
 
-    th = g_thread_create(test_force_adjust_thread, (gpointer)sem, TRUE, NULL);
+    th = G_THREAD_CREATE("test-force-adjust", test_force_adjust_thread, (gpointer)sem,
+			 TRUE, NULL);
 
     /* sleep to give amsemaphore_decrement() a chance to block (or not). */
     g_usleep(G_USEC_PER_SEC / 4);
@@ -199,7 +202,8 @@ test_force_set(void)
     GThread *th;
     amsemaphore_t *sem = amsemaphore_new_with_value(10);
 
-    th = g_thread_create(test_force_set_thread, (gpointer)sem, TRUE, NULL);
+    th = G_THREAD_CREATE("test-force-set", test_force_set_thread, (gpointer)sem,
+			 TRUE, NULL);
 
     /* sleep to give amsemaphore_decrement() a chance to block (or not). */
     g_usleep(G_USEC_PER_SEC / 4);

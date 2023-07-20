@@ -1555,7 +1555,8 @@ process_readnetfd(
 	event_activate(dh->ev_read);
 	dh->shm_ring = as->shm_ring;
 	if (dh->shm_ring) {
-	    as->thread = g_thread_create(shm_ring_thread, (gpointer)dh, TRUE, NULL);
+	    as->thread = G_THREAD_CREATE("shm_ring", shm_ring_thread, (gpointer)dh,
+					 TRUE, NULL);
 	}
     }
 

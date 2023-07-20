@@ -187,7 +187,7 @@ test_sync(void)
     /* start the child thread */
     data.proto = proto;
     data.fd = p[1];
-    child = g_thread_create(test_sync_child, &data, TRUE, NULL);
+    child = G_THREAD_CREATE("test-sync-child", test_sync_child, &data, TRUE, NULL);
 
     /* run the parent and collect the results */
     rv = test_sync_parent(proto, p[0]) && GPOINTER_TO_INT(g_thread_join(child));

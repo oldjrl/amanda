@@ -133,4 +133,34 @@ gboolean g_str_amanda_equal(gconstpointer v1, gconstpointer v2);
 
 GList *g_am_list_insert_after(GList *list, GList *sibling, gpointer data);
 
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+#define G_STATIC_MUTEX_LOCK g_mutex_lock
+#define G_STATIC_MUTEX_UNLOCK g_mutex_unlock
+#define G_MUTEX_NEW g_mutex_alloc
+#define G_MUTEX_FREE g_mutex_unalloc
+#define G_COND_NEW g_cond_alloc
+#define G_COND_FREE g_cond_unalloc
+#define G_THREAD_CREATE(MA_NAME,MA_THREAD,MA_DATA,MA_JOIN,MA_ERR) g_thread_new((MA_NAME),(MA_THREAD),(MA_DATA))
+#define G_MEMDUP g_memdup2
+#define G_MEMMOVE memmove
+#define GSTATICMUTEX(MA_MUTEX) GMutex MA_MUTEX
+#define G_STRCASECMP g_ascii_strcasecmp
+/* Helper functions to replace deprecated versions. */
+GMutex *g_mutex_alloc();
+void g_mutex_unalloc(GMutex *);
+GCond *g_cond_alloc();
+void g_cond_unalloc(GCond *);
+#else
+#define G_STATIC_MUTEX_LOCK g_static_mutex_lock
+#define G_STATIC_MUTEX_UNLOCK g_static_mutex_unlock
+#define G_MUTEX_NEW g_mutex_new
+#define G_MUTEX_FREE g_mutex_free
+#define G_COND_NEW g_cond_new
+#define G_COND_FREE g_cond_free
+#define G_THREAD_CREATE(MA_NAME,MA_THREAD,MA_DATA,MA_JOIN,MA_ERR) g_thread_create((MA_THREAD),(MA_DATA),(MA_JOIN),(MA_ERR))
+#define G_MEMDUP g_memdup
+#define G_MEMMOVE g_memmove
+#define GSTATICMUTEX(MA_MUTEX) GStaticMutex MA_MUTEX = G_STATIC_MUTEX_INIT
+#define G_STRCASECMP g_strcasecmp
+#endif
 #endif

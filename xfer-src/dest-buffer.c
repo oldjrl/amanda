@@ -114,7 +114,11 @@ push_buffer_impl(
 	self->allocated = new_size;
     }
 
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+    memmove(((guint8 *)self->buf)+self->len, buf, len);
+#else
     g_memmove(((guint8 *)self->buf)+self->len, buf, len);
+#endif
     self->len += len;
 
     amfree(buf);
@@ -151,7 +155,7 @@ push_buffer_static_impl(
 	self->allocated = new_size;
     }
 
-    g_memmove(((guint8 *)self->buf)+self->len, buf, len);
+    G_MEMMOVE(((guint8 *)self->buf)+self->len, buf, len);
     self->len += len;
 }
 

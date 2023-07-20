@@ -598,7 +598,7 @@ amar_attr_add_data_fd_in_thread(
     attribute->fd = fd;
     attribute->eoa = eoa;
     attribute->error = error;
-    attribute->thread = g_thread_create(amar_attr_add_data_fd_thread, attribute, TRUE, NULL);
+    attribute->thread = G_THREAD_CREATE("amar-attr-add-data", amar_attr_add_data_fd_thread, attribute, TRUE, NULL);
     return 0;
 }
 

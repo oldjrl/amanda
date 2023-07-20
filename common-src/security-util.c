@@ -327,7 +327,7 @@ tcpm_stream_write(
     assert(rs->rc != NULL);
 
     if (!stream_write_mutex) {
-	stream_write_mutex = g_mutex_new();
+	stream_write_mutex = G_MUTEX_NEW();
     }
     g_mutex_lock(stream_write_mutex);
     auth_debug(6, _("sec: stream_write: writing %zu bytes to %s:%d %d\n"),

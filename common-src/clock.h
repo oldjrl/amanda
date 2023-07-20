@@ -36,7 +36,11 @@
 
 #include "amanda.h"
 
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+typedef gint64 times_t;
+#else
 typedef GTimeVal times_t;
+#endif
 
 /* NOT THREAD SAFE */
 void startclock(void);
@@ -52,7 +56,7 @@ times_t timeadd(times_t a, times_t b);
 times_t timesub(times_t a, times_t b);
 #define timessub(x, y) timesub(x, y)
 
-double g_timeval_to_double(GTimeVal v);
+double g_timeval_to_double(times_t v);
 
 void amanda_gettimeofday(struct timeval * timeval_time);
 

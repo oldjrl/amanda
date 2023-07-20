@@ -161,7 +161,7 @@ protocol_init(void)
 {
 
     proto_init_time = time(NULL);
-    protocol_mutex = g_mutex_new();
+    protocol_mutex = G_MUTEX_NEW();
 }
 
 /*
@@ -235,7 +235,7 @@ protocol_sendreq(
 	 security_driver == &ssh_security_driver ||
 #endif
 	 0)) {
-	g_thread_create(connect_thread, (gpointer)p, TRUE, NULL);
+	G_THREAD_CREATE("connect-thread", connect_thread, (gpointer)p, TRUE, NULL);
 	g_mutex_lock(protocol_mutex);
 	nb_thread++;
 	g_mutex_unlock(protocol_mutex);
@@ -373,7 +373,7 @@ connect_wait_callback(
 	 p->security_driver == &ssh_security_driver ||
 #endif
 	 0) {
-	g_thread_create(connect_thread, (gpointer)p, TRUE, NULL);
+	G_THREAD_CREATE("connect-thread", connect_thread, (gpointer)p, TRUE, NULL);
 	g_mutex_lock(protocol_mutex);
 	nb_thread++;
 	g_mutex_unlock(protocol_mutex);

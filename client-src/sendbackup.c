@@ -657,14 +657,14 @@ main(
 
 	    enc_stderr_pipe.thread = NULL;
 	    if (enc_stderr_pipe.fd != -1) {
-		enc_stderr_pipe.thread = g_thread_create(stderr_thread,
-					(gpointer)&enc_stderr_pipe , TRUE, NULL);
+		enc_stderr_pipe.thread = G_THREAD_CREATE("enc_stderr", stderr_thread,
+					(gpointer)&enc_stderr_pipe, TRUE, NULL);
 	    }
 
 	    comp_stderr_pipe.thread = NULL;
 	    if (comp_stderr_pipe.fd != -1) {
-		comp_stderr_pipe.thread = g_thread_create(stderr_thread,
-					(gpointer)&comp_stderr_pipe , TRUE, NULL);
+		comp_stderr_pipe.thread = G_THREAD_CREATE("comp_stderr", stderr_thread,
+					(gpointer)&comp_stderr_pipe, TRUE, NULL);
 	    }
 
 	    cur_dumptime = time(0);
@@ -879,28 +879,28 @@ main(
 		if (!have_filter) {
 		    native_crc.shm_ring = shm_ring;
 		    native_crc.out = dumpout;
-		    native_crc.thread = g_thread_create(handle_crc_to_shm_ring_thread,
+		    native_crc.thread = G_THREAD_CREATE("crc-shm-ring", handle_crc_to_shm_ring_thread,
 					 (gpointer)&native_crc, TRUE, NULL);
 		} else {
 		    native_crc.out = dumpout;
-		    native_crc.thread = g_thread_create(handle_crc_thread,
+		    native_crc.thread = G_THREAD_CREATE("crc", handle_crc_thread,
 					 (gpointer)&native_crc, TRUE, NULL);
 		    client_crc.shm_ring = shm_ring;
 		    client_crc.in  = client_pipe[0];
 		    client_crc.out = datafd;
-		    client_crc.thread = g_thread_create(handle_crc_to_shm_ring_thread,
+		    client_crc.thread = G_THREAD_CREATE("crc-shm-ring", handle_crc_to_shm_ring_thread,
 					 (gpointer)&client_crc, TRUE, NULL);
 		}
 	    } else if (dle->data_path == DATA_PATH_AMANDA) {
 		native_crc.in  = native_pipe[0];
 		native_crc.out = dumpout;
-		native_crc.thread = g_thread_create(handle_crc_thread,
+		native_crc.thread = G_THREAD_CREATE("native-crc", handle_crc_thread,
 					(gpointer)&native_crc, TRUE, NULL);
 
 		if (have_filter) {
 		    client_crc.in  = client_pipe[0];
 		    client_crc.out = datafd;
-		    client_crc.thread = g_thread_create(handle_crc_thread,
+		    client_crc.thread = G_THREAD_CREATE("client-crc", handle_crc_thread,
 					(gpointer)&client_crc, TRUE, NULL);
 		}
 
