@@ -261,7 +261,7 @@ try_threads(void)
 
     glib_init();
 
-    thd = g_thread_create(thread_fn, (gpointer)&data, TRUE, NULL);
+    thd = G_THREAD_CREATE("thread", thread_fn, (gpointer)&data, TRUE, NULL);
     g_thread_join(thd);
     g_assert(data == 1);
 }

@@ -504,7 +504,7 @@ static void do_unthreaded_ops(RaitDevice *self G_GNUC_UNUSED, GFunc func, GPtrAr
    automatically between do_thread_pool_op and do_unthreaded_ops,
    depending on g_thread_supported(). */
 static void do_rait_child_ops(RaitDevice *self, GFunc func, GPtrArray * ops) {
-    if (g_thread_supported()) {
+    if (G_THREAD_SUPPORTED) {
         do_thread_pool_op(self, func, ops);
     } else {
         do_unthreaded_ops(self, func, ops);

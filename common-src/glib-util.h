@@ -145,6 +145,11 @@ GList *g_am_list_insert_after(GList *list, GList *sibling, gpointer data);
 #define G_MEMMOVE memmove
 #define GSTATICMUTEX(MA_MUTEX) GMutex MA_MUTEX
 #define G_STRCASECMP g_ascii_strcasecmp
+#define G_STRNCASECMP g_ascii_strncasecmp
+#define G_TIME_ZONE_NEW g_time_zone_new_identifier
+#define G_VALUE_GET_CHAR g_value_get_schar
+#define G_VALUE_SET_CHAR g_value_set_schar
+#define G_THREAD_SUPPORTED 1
 /* Helper functions to replace deprecated versions. */
 GMutex *g_mutex_alloc();
 void g_mutex_unalloc(GMutex *);
@@ -162,5 +167,10 @@ void g_cond_unalloc(GCond *);
 #define G_MEMMOVE g_memmove
 #define GSTATICMUTEX(MA_MUTEX) GStaticMutex MA_MUTEX = G_STATIC_MUTEX_INIT
 #define G_STRCASECMP g_strcasecmp
+#define G_STRNCASECMP g_strncasecmp
+#define G_TIME_ZONE_NEW g_time_zone_new
+#define G_VALUE_GET_CHAR g_value_get_char
+#define G_VALUE_SET_CHAR g_value_set_char
+#define G_THREAD_SUPPORTED g_thread_supported()
 #endif
 #endif

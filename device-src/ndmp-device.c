@@ -21,6 +21,7 @@
  */
 
 #include "amanda.h"
+#include "glib-util.h"
 #include "amutil.h"
 #include "device.h"
 #include "directtcp.h"
@@ -1245,7 +1246,7 @@ accept_impl(
 	 * until the mover is active.  So we have to poll, waiting for ACTIVE.
 	 * This is ugly. */
 
-	wait_thread = g_thread_create(accept_wait_cond, (gpointer)self, TRUE,
+      wait_thread = G_THREAD_CREATE("accept_wait", accept_wait_cond, (gpointer)self, TRUE,
 				      NULL);
 	while (!*cancelled && !self->cancel) {
 	    g_cond_wait(self->abort_cond, self->abort_mutex);

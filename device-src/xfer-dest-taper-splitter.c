@@ -22,6 +22,7 @@
  */
 
 #include "amanda.h"
+#include "glib-util.h"
 #include "amxfer.h"
 #include "xfer-device.h"
 #include "conffile.h"
@@ -883,7 +884,7 @@ start_impl(
     XferDestTaperSplitter *self = (XferDestTaperSplitter *)elt;
     GError *error = NULL;
 
-    self->device_thread = g_thread_create(device_thread, (gpointer)self, FALSE, &error);
+    self->device_thread = G_THREAD_CREATE("device", device_thread, (gpointer)self, FALSE, &error);
     if (!self->device_thread) {
         g_critical(_("Error creating new thread: %s (%s)"),
             error->message, errno? strerror(errno) : _("no error code"));
@@ -1105,11 +1106,11 @@ instance_init(
     XferDestTaperSplitter *self = XFER_DEST_TAPER_SPLITTER(elt);
     elt->can_generate_eof = FALSE;
 
-    self->ring_mutex = g_mutex_new();
-    self->ring_cond = g_cond_new();
-    self->state_mutex = g_mutex_new();
-    self->state_cond = g_cond_new();
-    self->part_slices_mutex = g_mutex_new();
+    self->ring_mutex = G_MUTEX_NEW();
+    self->ring_cond = G_COND_NEW();
+    self->state_mutex = G_MUTEX_NEW();
+    self->state_cond = G_COND_NEW();
+    self->part_slices_mutex = G_MUTEX_NEW();
 
     self->device = NULL;
     self->paused = TRUE;
@@ -1139,15 +1140,15 @@ finalize_impl(
     XferElement *elt = XFER_ELEMENT(self);
     FileSlice *slice, *next_slice;
 
-    g_mutex_free(self->ring_mutex);
-    g_cond_free(self->ring_cond);
-    g_mutex_free(self->state_mutex);
-    g_cond_free(self->state_cond);
+    G_MUTEX_FREE(self->ring_mutex);
+    G_COND_FREE(self->ring_cond);
+    G_MUTEX_FREE(self->state_mutex);
+    G_COND_FREE(self->state_cond);
 
     if (self->mem_ring) {
-	g_mutex_free(self->mem_ring->mutex);
-	g_cond_free(self->mem_ring->add_cond);
-	g_cond_free(self->mem_ring->free_cond);
+	G_MUTEX_FREE(self->mem_ring->mutex);
+	G_COND_FREE(self->mem_ring->add_cond);
+	G_COND_FREE(self->mem_ring->free_cond);
     }
 
     if (elt->shm_ring) {
@@ -1155,7 +1156,7 @@ finalize_impl(
 	elt->shm_ring = NULL;
     }
 
-    g_mutex_free(self->part_slices_mutex);
+    G_MUTEX_FREE(self->part_slices_mutex);
 
     for (slice = self->part_slices; slice; slice = next_slice) {
 	next_slice = slice->next;

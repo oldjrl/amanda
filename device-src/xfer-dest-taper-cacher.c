@@ -22,6 +22,7 @@
  */
 
 #include "amanda.h"
+#include "glib-util.h"
 #include "amxfer.h"
 #include "xfer-device.h"
 #include "conffile.h"
@@ -1014,7 +1015,7 @@ device_thread(
 
     if (self->disk_cache_dirname) {
         GError *error = NULL;
-	self->disk_cache_thread = g_thread_create(disk_cache_thread, (gpointer)self, TRUE, &error);
+	self->disk_cache_thread = G_THREAD_CREATE("disk_cache", disk_cache_thread, (gpointer)self, TRUE, &error);
         if (!self->disk_cache_thread) {
             g_critical(_("Error creating new thread: %s (%s)"),
                 error->message, errno? strerror(errno) : _("no error code"));
@@ -1229,7 +1230,7 @@ start_impl(
     XferDestTaperCacher *self = (XferDestTaperCacher *)elt;
     GError *error = NULL;
 
-    self->device_thread = g_thread_create(device_thread, (gpointer)self, FALSE, &error);
+    self->device_thread = G_THREAD_CREATE("device", device_thread, (gpointer)self, FALSE, &error);
     if (!self->device_thread) {
         g_critical(_("Error creating new thread: %s (%s)"),
             error->message, errno? strerror(errno) : _("no error code"));
@@ -1370,11 +1371,11 @@ instance_init(
     XferDestTaperCacher *self = XFER_DEST_TAPER_CACHER(elt);
     elt->can_generate_eof = FALSE;
 
-    self->state_mutex = g_mutex_new();
-    self->state_cond = g_cond_new();
-    self->slab_mutex = g_mutex_new();
-    self->slab_cond = g_cond_new();
-    self->slab_free_cond = g_cond_new();
+    self->state_mutex = G_MUTEX_NEW();
+    self->state_cond = G_COND_NEW();
+    self->slab_mutex = G_MUTEX_NEW();
+    self->slab_cond = G_COND_NEW();
+    self->slab_free_cond = G_COND_NEW();
 
     self->last_part_successful = TRUE;
     self->paused = TRUE;
@@ -1394,12 +1395,12 @@ finalize_impl(
     if (self->disk_cache_dirname)
 	g_free(self->disk_cache_dirname);
 
-    g_mutex_free(self->state_mutex);
-    g_cond_free(self->state_cond);
+    G_MUTEX_FREE(self->state_mutex);
+    G_COND_FREE(self->state_cond);
 
-    g_mutex_free(self->slab_mutex);
-    g_cond_free(self->slab_cond);
-    g_cond_free(self->slab_free_cond);
+    G_MUTEX_FREE(self->slab_mutex);
+    G_COND_FREE(self->slab_cond);
+    G_COND_FREE(self->slab_free_cond);
 
     /* free the slab train, without reference to the refcounts */
     for (slab = self->oldest_slab; slab != NULL; slab = next_slab) {
