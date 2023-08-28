@@ -32,6 +32,7 @@
 #include <string.h>
 #include "s3.h"
 #include "s3-util.h"
+#include "glib-util.h"
 #ifdef HAVE_REGEX_H
 #include <regex.h>
 #endif
@@ -642,7 +643,7 @@ rfc3339_date(
 	GDateTime *dt;
 	time_t a;
 
-	tz = g_time_zone_new(atz);
+	tz = G_TIME_ZONE_NEW(atz);
 	dt = g_date_time_new(tz, year, month, day, hour, minute, seconds);
 	a = g_date_time_to_unix(dt);
 	g_time_zone_unref(tz);
@@ -3029,17 +3030,17 @@ compile_regexes(void)
 #endif
 gboolean s3_init(void)
 {
-    static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
+  static GSTATICMUTEX(mutex);
     static gboolean init = FALSE, ret;
 
     /* n.b. curl_global_init is called in common-src/glib-util.c:glib_init() */
 
-    g_static_mutex_lock (&mutex);
+    G_STATIC_MUTEX_LOCK (&mutex);
     if (!init) {
         ret = compile_regexes();
         init = TRUE;
     }
-    g_static_mutex_unlock(&mutex);
+    G_STATIC_MUTEX_UNLOCK(&mutex);
     return ret;
 }
 #if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 31))

@@ -22,6 +22,7 @@
  */
 
 #include "amanda.h"
+#include "glib-util.h"
 #include "amxfer.h"
 #include "xfer-device.h"
 #include "conffile.h"
@@ -319,7 +320,7 @@ start_impl(
     self->paused = TRUE;
 
     /* start up the thread */
-    self->worker_thread = g_thread_create(worker_thread, (gpointer)self, TRUE, &error);
+    self->worker_thread = G_THREAD_CREATE("worker", worker_thread, (gpointer)self, TRUE, &error);
     if (!self->worker_thread) {
 	g_critical(_("Error creating new thread: %s (%s)"),
 	    error->message, errno? strerror(errno) : _("no error code"));
@@ -433,9 +434,9 @@ instance_init(
     self->worker_thread = NULL;
     self->paused = TRUE;
     self->conn = NULL;
-    self->state_mutex = g_mutex_new();
-    self->paused_cond = g_cond_new();
-    self->abort_cond = g_cond_new();
+    self->state_mutex = G_MUTEX_NEW();
+    self->paused_cond = G_COND_NEW();
+    self->abort_cond = G_COND_NEW();
 }
 
 static void
@@ -456,9 +457,9 @@ finalize_impl(
 	g_object_unref(self->device);
     self->device = NULL;
 
-    g_mutex_free(self->state_mutex);
-    g_cond_free(self->paused_cond);
-    g_cond_free(self->abort_cond);
+    G_MUTEX_FREE(self->state_mutex);
+    G_COND_FREE(self->paused_cond);
+    G_COND_FREE(self->abort_cond);
 
     if (self->part_header)
 	dumpfile_free(self->part_header);

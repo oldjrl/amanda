@@ -22,6 +22,7 @@
  */
 
 #include "amanda.h"
+#include "glib-util.h"
 #include "amutil.h"
 #include "xfer-server.h"
 #include "xfer-device.h"
@@ -593,7 +594,7 @@ start_impl(
     GError *error = NULL;
 
     if (elt->output_mech == XFER_MECH_MEM_RING) {
-	self->holding_thread = g_thread_create(holding_thread, (gpointer)self, FALSE, &error);
+      self->holding_thread = G_THREAD_CREATE("holding", holding_thread, (gpointer)self, FALSE, &error);
 	if (!self->holding_thread) {
             g_critical(_("Error creating new thread: %s (%s)"),
 	            error->message, errno? strerror(errno) : _("no error code"));
@@ -660,8 +661,8 @@ instance_init(
 {
     XferSourceHolding *self = XFER_SOURCE_HOLDING(elt);
 
-    self->state_mutex = g_mutex_new();
-    self->state_cond = g_cond_new();
+    self->state_mutex = G_MUTEX_NEW();
+    self->state_cond = G_COND_NEW();
 
     elt->can_generate_eof = TRUE;
     self->fd = -1;
@@ -669,8 +670,8 @@ instance_init(
     self->current_offset = 0;
     self->offset_file = -1;
     self->fsize = -1;
-    self->start_recovery_cond = g_cond_new();
-    self->start_recovery_mutex = g_mutex_new();
+    self->start_recovery_cond = G_COND_NEW();
+    self->start_recovery_mutex = G_MUTEX_NEW();
     crc32_init(&elt->crc);
 }
 
@@ -681,17 +682,17 @@ finalize_impl(
     XferSourceHolding *self = XFER_SOURCE_HOLDING(obj_self);
 
     g_mutex_lock(self->start_recovery_mutex);
-    g_mutex_free(self->state_mutex);
-    g_cond_free(self->state_cond);
+    G_MUTEX_FREE(self->state_mutex);
+    G_COND_FREE(self->state_cond);
 
     if (self->first_filename)
 	g_free(self->first_filename);
     if (self->next_filename)
 	g_free(self->next_filename);
 
-    g_cond_free(self->start_recovery_cond);
+    G_COND_FREE(self->start_recovery_cond);
     g_mutex_unlock(self->start_recovery_mutex);
-    g_mutex_free(self->start_recovery_mutex);
+    G_MUTEX_FREE(self->start_recovery_mutex);
     if (self->fd != -1)
 	close(self->fd); /* ignore error; we were probably already cancelled */
 

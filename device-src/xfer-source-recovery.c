@@ -22,6 +22,7 @@
  */
 
 #include "amanda.h"
+#include "glib-util.h"
 #include "amxfer.h"
 #include "device.h"
 #include "property.h"
@@ -356,11 +357,11 @@ start_impl(
 
     if (elt->output_mech == XFER_MECH_DIRECTTCP_CONNECT) {
 	g_assert(elt->output_listen_addrs != NULL);
-	self->thread = g_thread_create(directtcp_connect_thread, (gpointer)self, FALSE, NULL);
+	self->thread = G_THREAD_CREATE("directtcp_connect", directtcp_connect_thread, (gpointer)self, FALSE, NULL);
 	return TRUE; /* we'll send XMSG_DONE */
     } else if (elt->output_mech == XFER_MECH_DIRECTTCP_LISTEN) {
 	g_assert(elt->output_listen_addrs == NULL);
-	self->thread = g_thread_create(directtcp_listen_thread, (gpointer)self, FALSE, NULL);
+	self->thread = G_THREAD_CREATE("directtcp_listen", directtcp_listen_thread, (gpointer)self, FALSE, NULL);
 	return TRUE; /* we'll send XMSG_DONE */
     } else {
 	/* nothing to prepare for - we're ready already! */
@@ -731,9 +732,9 @@ finalize_impl(
     if (self->device)
 	g_object_unref(self->device);
 
-    g_cond_free(self->start_part_cond);
-    g_cond_free(self->abort_cond);
-    g_mutex_free(self->start_part_mutex);
+    G_COND_FREE(self->start_part_cond);
+    G_COND_FREE(self->abort_cond);
+    G_MUTEX_FREE(self->start_part_mutex);
 }
 
 static void
@@ -743,9 +744,9 @@ instance_init(
     XferSourceRecovery *self = XFER_SOURCE_RECOVERY(elt);
 
     self->paused = TRUE;
-    self->start_part_cond = g_cond_new();
-    self->abort_cond = g_cond_new();
-    self->start_part_mutex = g_mutex_new();
+    self->start_part_cond = G_COND_NEW();
+    self->abort_cond = G_COND_NEW();
+    self->start_part_mutex = G_MUTEX_NEW();
     crc32_init(&elt->crc);
 }
 

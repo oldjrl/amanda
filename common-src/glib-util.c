@@ -122,7 +122,7 @@ glib_init(void) {
 # ifdef G_THREADS_ENABLED
     if (glib_major_version < 2 ||
 	(glib_major_version == 2 && glib_minor_version < 31))
-	g_assert(!g_thread_supported()); /* assert threads aren't initialized yet */
+	g_assert(!G_THREAD_SUPPORTED); /* assert threads aren't initialized yet */
 # endif
     g_assert(curl_global_init(CURL_GLOBAL_ALL) == 0);
 #endif

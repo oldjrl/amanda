@@ -34,6 +34,7 @@
 #include <dirent.h>
 #include <regex.h>
 #include <time.h>
+#include "glib-util.h"
 #include "amutil.h"
 #include "conffile.h"
 #include "device.h"
@@ -2472,16 +2473,16 @@ static void s3_device_finalize(GObject * obj_self) {
 	self->thread_pool_read = NULL;
     }
     if (self->thread_idle_mutex) {
-	g_mutex_free(self->thread_idle_mutex);
+	G_MUTEX_FREE(self->thread_idle_mutex);
 	self->thread_idle_mutex = NULL;
     }
     if (self->thread_idle_cond) {
-	g_cond_free(self->thread_idle_cond);
+	G_COND_FREE(self->thread_idle_cond);
 	self->thread_idle_cond = NULL;
     }
     if (self->s3t) {
 	for (thread = 0; thread < self->nb_threads; thread++) {
-	    g_mutex_free(self->s3t[thread].now_mutex);
+	    G_MUTEX_FREE(self->s3t[thread].now_mutex);
             if(self->s3t[thread].s3) s3_free(self->s3t[thread].s3);
 	    g_free(self->s3t[thread].curl_buffer.buffer);
 	}
@@ -2636,7 +2637,7 @@ setup_handle(S3Device * self) {
 
     if (self->s3_api == S3_API_UNKNOWN) {
 	if (self->host && strlen(self->host) > 14 &&
-	    g_strncasecmp(self->host+strlen(self->host)-14, ".amazonaws.com", 14) == 0) {
+	    G_STRNCASECMP(self->host+strlen(self->host)-14, ".amazonaws.com", 14) == 0) {
 	    self->s3_api = S3_API_AWS4;
 	} else {
 	    self->s3_api = S3_API_S3;
@@ -2737,8 +2738,8 @@ setup_handle(S3Device * self) {
             return FALSE;
 	}
 
-	self->thread_idle_cond = g_cond_new();
-	self->thread_idle_mutex = g_mutex_new();
+	self->thread_idle_cond = G_COND_NEW();
+	self->thread_idle_mutex = G_MUTEX_NEW();
 
 	for (thread = 0; thread < self->nb_threads; thread++) {
 	    self->s3t[thread].idle = 1;
@@ -2750,7 +2751,7 @@ setup_handle(S3Device * self) {
 	    self->s3t[thread].curl_buffer.buffer = NULL;
 	    self->s3t[thread].curl_buffer.buffer_len = 0;
 	    self->s3t[thread].timeout = 0;
-	    self->s3t[thread].now_mutex = g_mutex_new();
+	    self->s3t[thread].now_mutex = G_MUTEX_NEW();
             self->s3t[thread].s3 = s3_open(self->access_key, self->secret_key,
 					   self->session_token,
 					   self->swift_account_id,
@@ -3468,8 +3469,8 @@ s3_device_write_block (Device * pself, guint size, gpointer data) {
     self->s3t[thread].curl_buffer.max_buffer_size = allocate;
     if (self->chunked) {
 	self->s3t[thread].curl_buffer.end_of_buffer = FALSE;
-	self->s3t[thread].curl_buffer.mutex = g_mutex_new();
-	self->s3t[thread].curl_buffer.cond  = g_cond_new();
+	self->s3t[thread].curl_buffer.mutex = G_MUTEX_NEW();
+	self->s3t[thread].curl_buffer.cond  = G_COND_NEW();
     } else {
 	self->s3t[thread].curl_buffer.end_of_buffer = TRUE;
 	self->s3t[thread].curl_buffer.mutex = NULL;
@@ -3629,9 +3630,9 @@ s3_device_finish_file (Device * pself) {
 
     if (self->chunked) {
 	CurlBuffer *buf = &self->s3t[0].curl_buffer;
-	g_cond_free(buf->cond);
+	G_COND_FREE(buf->cond);
 	buf->cond = NULL;
-	g_mutex_free(buf->mutex);
+	G_MUTEX_FREE(buf->mutex);
 	buf->mutex = NULL;
     }
 
@@ -4157,8 +4158,8 @@ s3_start_read_ahead(
 		self->s3t[thread].curl_buffer.buffer_len = 0;
 		s3t->curl_buffer.max_buffer_size = allocate;
 		s3t->curl_buffer.end_of_buffer = FALSE;
-		s3t->curl_buffer.mutex = g_mutex_new();
-		s3t->curl_buffer.cond = g_cond_new();
+		s3t->curl_buffer.mutex = G_MUTEX_NEW();
+		s3t->curl_buffer.cond = G_COND_NEW();
 	    } else {
 		s3t->curl_buffer.max_buffer_size = S3_DEVICE_MAX_BLOCK_SIZE;
 		s3t->curl_buffer.end_of_buffer = TRUE;

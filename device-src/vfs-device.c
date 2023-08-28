@@ -21,6 +21,7 @@
  */
 
 #include "amanda.h"
+#include "glib-util.h"
 #include <string.h> /* memset() */
 #include "fsusage.h"
 #include "amutil.h"
@@ -491,13 +492,13 @@ property_set_use_data_fn(
 
     const char *value = g_value_get_string(val);
 
-    if (g_strcasecmp(value, "NO") == 0 ||
-	g_strcasecmp(value, "FALSE") == 0) {
+    if (G_STRCASECMP(value, "NO") == 0 ||
+	G_STRCASECMP(value, "FALSE") == 0) {
 	self->use_data = 0;
-    } else if (g_strcasecmp(value, "YES") == 0 ||
-	g_strcasecmp(value, "TRUE") == 0) {
+    } else if (G_STRCASECMP(value, "YES") == 0 ||
+	G_STRCASECMP(value, "TRUE") == 0) {
 	self->use_data = 1;
-    } else if (g_strcasecmp(value, "EXIST") == 0) {
+    } else if (G_STRCASECMP(value, "EXIST") == 0) {
 	self->use_data = 2;
     } else {
 	g_warning(_("Illegal USE-DATA value (%s), using 'EXIST'."), value);
