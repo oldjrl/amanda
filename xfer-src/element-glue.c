@@ -1786,9 +1786,9 @@ start_impl(
 {
     XferElementGlue *self = (XferElementGlue *)elt;
 
-    if (self->need_thread)
-	self->thread = g_thread_create(worker_thread, (gpointer)self, TRUE, NULL);
-
+    if (self->need_thread) {
+	self->thread = G_THREAD_CREATE("worker", worker_thread, (gpointer)self, TRUE, NULL);
+    }
     /* we're active if we have a thread that will eventually die */
     return self->need_thread;
 }

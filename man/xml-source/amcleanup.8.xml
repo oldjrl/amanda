@@ -113,7 +113,7 @@ runs the Amanda cleanup process as part of the reboot,
 eliminating the need to run it by hand.</para>
 
 <programlisting>
-/usr/local/sbin/amcleanup daily
+@sbindir@/amcleanup daily
 </programlisting>
 
 <para>If nothing needs to be done,

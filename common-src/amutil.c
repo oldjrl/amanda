@@ -1533,9 +1533,9 @@ char * portable_readdir(DIR* handle) {
     struct dirent *entry_p;
 #endif
 
-    static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
+    static GSTATICMUTEX(mutex);
 
-    g_static_mutex_lock(&mutex);
+    G_STATIC_MUTEX_LOCK(&mutex);
 
 #ifdef USE_READDIR
     entry_p = readdir(handle);
@@ -1544,7 +1544,7 @@ char * portable_readdir(DIR* handle) {
     entry_p = readdir64(handle);
 #endif
 
-    g_static_mutex_unlock(&mutex);
+    G_STATIC_MUTEX_UNLOCK(&mutex);
     
     if (entry_p == NULL)
         return NULL;
@@ -2532,7 +2532,7 @@ get_platform_and_distro(
 		goto return_platorm;
 	    }
 	} else if (strlen(uname) >= 3 &&
-		   g_strcasecmp(uname+strlen(uname)-3, "bsd") == 0) {
+		   G_STRCASECMP(uname+strlen(uname)-3, "bsd") == 0) {
 	    distro = uname;
 	    argv_ptr = g_ptr_array_new();
 	    g_ptr_array_add(argv_ptr, UNAME_PATH);

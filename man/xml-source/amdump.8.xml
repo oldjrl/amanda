@@ -136,7 +136,7 @@ every weeknight at 1 a.m. as user
 <emphasis remap='B'>bin</emphasis>:</para>
 
 <programlisting>
-0 1 * * 1-5 bin /usr/local/sbin/amdump daily
+0 1 * * 1-5 bin @sbindir@/amdump daily
 </programlisting>
 
 <para>Please see the 

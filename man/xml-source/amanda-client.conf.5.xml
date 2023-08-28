@@ -161,7 +161,7 @@ The directory where gnutar keep its state file.</para>
   <term><amkeyword>amandates</amkeyword> <amtype>string</amtype></term>
   <listitem>
 <para>Default: 
-<amdefault>/etc/amandates</amdefault>.
+<amdefault>@amandastatedir@/amandates</amdefault>.
 The file where amanda keep the last date of each dumplevel.</para>
   </listitem>
   </varlistentry>

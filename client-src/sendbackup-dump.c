@@ -525,28 +525,28 @@ char *progname;
 	if (!have_filter) {
 	    native_crc.out = dumpout;
 	    native_crc.shm_ring = shm_ring;
-	    native_crc.thread = g_thread_create(handle_crc_to_shm_ring_thread,
+	    native_crc.thread = G_THREAD_CREATE("crc-shm-ring", handle_crc_to_shm_ring_thread,
 				(gpointer)&native_crc, TRUE, NULL);
 	} else {
 	    native_crc.out = dumpout;
-	    native_crc.thread = g_thread_create(handle_crc_thread,
+	    native_crc.thread = G_THREAD_CREATE("crc", handle_crc_thread,
 				(gpointer)&native_crc, TRUE, NULL);
 	    client_crc.in  = client_pipe[0];
 	    client_crc.out = dumpout;
 	    client_crc.shm_ring = shm_ring;
-	    client_crc.thread = g_thread_create(handle_crc_to_shm_ring_thread,
+	    client_crc.thread = G_THREAD_CREATE("crc-shm-ring", handle_crc_to_shm_ring_thread,
 				(gpointer)&client_crc, TRUE, NULL);
 	}
     } else {
 	native_crc.in  = native_pipe[0];
 	native_crc.out = dumpout;
-	native_crc.thread = g_thread_create(handle_crc_thread,
+	native_crc.thread = G_THREAD_CREATE("native-crc", handle_crc_thread,
 				(gpointer)&native_crc, TRUE, NULL);
 
 	if (have_filter) {
 	    client_crc.in  = client_pipe[0];
 	    client_crc.out = dataf;
-	    client_crc.thread = g_thread_create(handle_crc_thread,
+	    client_crc.thread = G_THREAD_CREATE("client-crc", handle_crc_thread,
 				(gpointer)&client_crc, TRUE, NULL);
 	}
     }

@@ -203,8 +203,12 @@ ndma_daemon_session (struct ndm_session *sess, int port, int is_test_daemon)
 
 	    /* and exit when our stdin goes away */
 	    g_debug("will exit on EOF from stdin");
-	    g_thread_init(NULL);
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+	    g_thread_new((gchar *)"exit-on-stdin", exit_on_stdin_eof_thread, NULL);
+#else
+ 	    g_thread_init(NULL);
 	    g_thread_create(exit_on_stdin_eof_thread, NULL, FALSE, NULL);
+#endif
 	}
 
 	for (;;) {

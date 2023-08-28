@@ -249,7 +249,7 @@ file, which lists tapes that are currently active.
 These files are described in more detail in the following sections.</para>
 
 <para>All configuration files are stored in individual configuration
-directories, usually under <filename>/etc/amanda/</filename>.
+directories, usually under <filename>@CONFIG_DIR@</filename>.
 A site will often have more than
 one configuration.
 For example, it might have a
@@ -258,8 +258,8 @@ configuration for everyday backups and an
 <emphasis remap='I'>archive</emphasis>
 configuration for infrequent full archival backups.
 The configuration files would be stored under directories
-<filename>/etc/amanda/normal/</filename> and
-<filename>/etc/amanda/archive/</filename>, respectively.
+<filename>@CONFIG_DIR@/normal/</filename> and
+<filename>@CONFIG_DIR@/archive/</filename>, respectively.
 Part of the job of an Amanda administrator is to create,
 populate and maintain these directories.</para>
 

@@ -336,7 +336,7 @@ define dumptype encrypt-fast {
    comment "fast client compression and server symmetric encryption, dumped with tar"
    compress client fast
    encrypt server
-   server_encrypt "/usr/sbin/amcrypt"
+   server_encrypt "@sbindir@/amcrypt"
    server_decrypt_option "-d"
 }
 
@@ -348,7 +348,7 @@ define dumptype encrypt-simple-nocomp {
    comment "client simple symmetric encryption, dumped with tar"
    compress none
    encrypt client
-   client_encrypt "/usr/sbin/amcryptsimple"
+   client_encrypt "@sbindir@/amcryptsimple"
    client_decrypt_option "-d"
 }
 
@@ -360,7 +360,7 @@ define dumptype gpg-encrypt-nocomp {
    comment "server public-key encryption, dumped with tar"
    compress none
    encrypt server
-   server_encrypt "/usr/sbin/amgpgcrypt"
+   server_encrypt "@sbindir@/amgpgcrypt"
    server_decrypt_option "-d"
 }
 
@@ -386,7 +386,7 @@ define dumptype gui-encrypt {
    comment "gui dumptype with encryption"
    compress none
    encrypt server
-   server_encrypt "/usr/sbin/amcryptsimple"
+   server_encrypt "@sbindir@/amcryptsimple"
 }
 
 define dumptype gui-encrypt-compress {
@@ -394,5 +394,5 @@ define dumptype gui-encrypt-compress {
    comment "gui dumptype with compression and encryption"
    compress client fast
    encrypt server 
-   server_encrypt "/usr/sbin/amcryptsimple"
+   server_encrypt "@sbindir@/amcryptsimple"
 }

@@ -59,6 +59,8 @@ use Exporter;
     $amdatadir
     $localstatedir
     $amperldir
+    $amandastatedir
+    $amandahomedir
 
     $AMANDA_TMPDIR
     $CONFIG_DIR
@@ -91,6 +93,8 @@ $sysconfdir = "@sysconfdir@";
 $amdatadir = "@amdatadir@";
 $localstatedir = "@localstatedir@";
 $amperldir = "@amperldir@";
+$amandahomedir = "@amandahomedir@";
+$amandastatedir = "@amandastatedir@";
 
 ## amanda configuration directories
 

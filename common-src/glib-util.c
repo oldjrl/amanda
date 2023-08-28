@@ -66,7 +66,7 @@ init_openssl(void)
 
     SSL_library_init();
     for (i=0; i<CRYPTO_num_locks(); i++) {
-	openssl_mutex_array[i] = g_mutex_new();
+	openssl_mutex_array[i] = G_MUTEX_NEW();
     }
     CRYPTO_set_locking_callback(openssl_lock_callback);
 #else
@@ -142,6 +142,7 @@ glib_init(void) {
     }
 #endif
 
+#if (!(GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32)))
     /* Initialize glib's type system.  On glib >= 2.24, this will initialize
      * threads, so it must be done after curl is initialized. */
     g_type_init();
@@ -151,12 +152,13 @@ glib_init(void) {
     if (!g_thread_supported())
 	g_thread_init(NULL);
 #endif
+#endif
 
     /* Initialize global mutex */
-    file_mutex = g_mutex_new();
-    shm_ring_mutex = g_mutex_new();
-    priv_mutex = g_mutex_new();
-    security_mutex = g_mutex_new();
+    file_mutex = G_MUTEX_NEW();
+    shm_ring_mutex = G_MUTEX_NEW();
+    priv_mutex = G_MUTEX_NEW();
+    security_mutex = G_MUTEX_NEW();
 
     /* initialize ssl */
     init_ssl();
@@ -656,3 +658,45 @@ g_am_list_insert_after(
       return first;
     }
 }
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+
+GMutex *
+g_mutex_alloc(void)
+{
+    GMutex * mp;
+    mp = (GMutex *)g_malloc(sizeof(GMutex));
+    if (mp) {
+      g_mutex_init(mp);
+    }
+    return mp;
+}
+
+void
+g_mutex_unalloc(GMutex *mp)
+{
+    if (mp) {
+      g_mutex_clear(mp);
+      g_free(mp);
+    }
+}
+
+GCond *
+g_cond_alloc(void)
+{
+    GCond * cp;
+    cp = (GCond *)g_malloc(sizeof(GCond));
+    if (cp) {
+      g_cond_init(cp);
+    }
+    return cp;
+}
+
+void
+g_cond_unalloc(GCond *cp)
+{
+    if (cp) {
+      g_cond_clear(cp);
+      g_free(cp);
+    }
+}
+#endif

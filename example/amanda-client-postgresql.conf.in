@@ -20,7 +20,7 @@ tape_server  "@DEFAULT_TAPE_SERVER@"	# your amidxtaped server
 auth "bsdtcp"
 
 # your ssh keys file if you use ssh auth
-ssh_keys "/var/lib/amanda/.ssh/id_rsa_amrecover"
+ssh_keys "@AMANDAHOMEDIR@/.ssh/id_rsa_amrecover"
 
 # Use /etc/amanda/pgpassfile for authentication credentials
 # (Note: for PostgreSQL 8.0.x, you must use PG-PASSWORD instead)

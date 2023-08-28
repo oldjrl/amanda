@@ -140,7 +140,7 @@ for a description.</para>
 <para><emphasis remap='B'>Amflush</emphasis>
 will look in the holding disks specified by the
 <emphasis remap='I'>amanda.conf</emphasis>
-file in /usr/local/etc/amanda/<emphasis remap='I'>config</emphasis>
+file in @CONFIG_DIR@/<emphasis remap='I'>config</emphasis>
 for any non-empty Amanda work directories.
 It then prompts you to select a directory
 or to process all of the directories.

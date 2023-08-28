@@ -33,9 +33,8 @@ use Amanda::Constants;
 
 my $confdir="$CONFIG_DIR";
 my $tmpdir="$AMANDA_DBGDIR";
-my $amandahomedir="$localstatedir/lib/amanda";
 my $templatedir="$amdatadir/template.d"; #rpm install template files here
-my $def_tapedev="file:$amandahomedir/vtapes";
+my $def_tapedev="file:$amandastatedir/vtapes";
 
 my $amanda_user="$Amanda::Constants::CLIENT_LOGIN";
 my $def_config="$Amanda::Constants::DEFAULT_CONFIG";
@@ -96,29 +95,53 @@ sub log_and_die {
 	    unlink "$confdir/$config/tapelist" || 
 	    print LOG "unlink $confdir/$config/tapelist failed: $!\n";
 	}
-	if ( -e "$confdir/$config/curinfo" ) {
-	    rmdir "$confdir/$config/curinfo" || 
-	    print LOG "rmdir $confdir/$config failed: $!\n";
+	if ( -e "$amandastatedir/$config/curinfo" ) {
+	    rmdir "$amandastatedir/$config/curinfo" || 
+	    print LOG "rmdir $amandastatedir/$config failed: $!\n";
 	}
-	if ( -e "$confdir/$config/index" ) {
-	    rmdir "$confdir/$config/index" || 
-	    print LOG "rmdir $confdir/$config/index failed: $!\n";
+	if ( -e "$amandastatedir/$config/index" ) {
+	    rmdir "$amandastatedir/$config/index" || 
+	    print LOG "rmdir $amandastatedir/$config/index failed: $!\n";
 	}
 	rmdir "$confdir/$config" || 
 	    print LOG "rmdir $confdir/$config failed: $!\n";
+	rmdir "$amandastatedir/$config" || 
+	    print LOG "rmdir $amandastatedir/$config failed: $!\n";
     }
     die $err;
 }
 
+# Since we aren't running as root, ensure the required parent directories exist
+#  and are writable by the Amanda user.
+sub check_parent_directories {
+    my @parent_dirs = ($confdir, $amandastatedir);
+    my @need_dirs;
+    for my $dir (@parent_dirs) {
+	if (! -w $dir) {
+	    push(@need_dirs, $dir);
+	}
+    }
+    if (scalar(@need_dirs)) {
+	my $msg;
+	my $dirs = join(', ', @need_dirs);
+	if (scalar(@need_dirs) > 1) {
+	    $msg = "ERROR: ensure $dirs exist and are writable by $amanda_user";
+	} else {
+	    $msg = "ERROR: ensure $dirs exists and is writable by $amanda_user";
+	}
+	
+	&log_and_die ("$msg\n");
+    }
+}
 
 # rpm installation should have taken care of these. Create one if it's not there
 sub check_gnutarlist_dir {
-    if ( -e "$amandahomedir/gnutar-lists" ) {
-	&mprint ("$amandahomedir/gnutar-lists directory exists\n");
+    if ( -e "$amandastatedir/gnutar-lists" ) {
+	&mprint ("$amandastatedir/gnutar-lists directory exists\n");
     }
     else {
-	mkpath ("$amandahomedir/gnutar-lists", $def_perm) ||
-	    &log_and_die ("ERROR: mkpath:$amandahomedir/gnutar-lists failed: $!\n", 0);
+	mkpath ("$amandastatedir/gnutar-lists", $def_perm) ||
+	    &log_and_die ("ERROR: mkpath:$amandastatedir/gnutar-lists failed: $!\n", 0);
     }
 }
 
@@ -159,10 +182,10 @@ sub copy_template_file {
 
 
 sub create_curinfo_index_dir {
-    mkpath("$confdir/$config/curinfo", $def_perm) ||
-	&log_and_die ("ERROR: mkpath: $confdir/$config/curinfo failed: $!\n", 1);
-    mkpath("$confdir/$config/index", $def_perm) || 
-	&log_and_die ("ERROR: mkpath: $confdir/$config/index failed: $!\n", 1);
+    mkpath("$amandastatedir/$config/curinfo", $def_perm) ||
+	&log_and_die ("ERROR: mkpath: $amandastatedir/$config/curinfo failed: $!\n", 1);
+    mkpath("$amandastatedir/$config/index", $def_perm) || 
+	&log_and_die ("ERROR: mkpath: $amandastatedir/$config/index failed: $!\n", 1);
     &mprint ("curinfo and index directory created\n");
 }
 
@@ -180,8 +203,8 @@ sub touch_list_files {
 
 # create holding disk directory, check disk space first
 sub create_holding { 
-  if ( -d "$amandahomedir/holdings/$config" ) {
-    my $uid = (stat("$amandahomedir/holdings/$config"))[4];
+  if ( -d "$amandastatedir/holdings/$config" ) {
+    my $uid = (stat("$amandastatedir/holdings/$config"))[4];
     my $owner = (getpwuid($uid))[0];
     unless ( $owner eq $amanda_user ) {
       &mprint ("WARNING: holding disk directory exists and is not owned by $amanda_user\n");
@@ -190,7 +213,7 @@ sub create_holding {
     return;
   }
     my $div=1;
-    my $out = `df -k $amandahomedir`;
+    my $out = `df -k $amandastatedir`;
     my @dfout = split(" " , $out);
     unless ( $#dfout == 12 ) {	# df should output 12 elem
 	&mprint ("WARNING: df failed, holding disk directory not created\n");
@@ -203,26 +226,26 @@ sub create_holding {
     
     if (( $dfout[10] / $div )  > 1024000 ) { # holding disk is defined 1000 MB
 	&mprint ("creating holding disk directory\n");
-	unless ( -d "$amandahomedir/holdings" ) { 
-	mkpath ( "$amandahomedir/holdings", $def_perm) ||
-	    (&mprint ("WARNING: mkpath $amandahomedir/holdings failed: $!\n"), $holding_err++, return );
+	unless ( -d "$amandastatedir/holdings" ) { 
+	mkpath ( "$amandastatedir/holdings", $def_perm) ||
+	    (&mprint ("WARNING: mkpath $amandastatedir/holdings failed: $!\n"), $holding_err++, return );
     }
-	mkpath ( "$amandahomedir/holdings/$config", $def_perm) ||
-	    (&mprint ("WARNING: mkpath $amandahomedir/holdings/$config failed: $!\n"), $holding_err++, return) ;
+	mkpath ( "$amandastatedir/holdings/$config", $def_perm) ||
+	    (&mprint ("WARNING: mkpath $amandastatedir/holdings/$config failed: $!\n"), $holding_err++, return) ;
     }
 }
 
 #create default tape dir
 sub create_deftapedir{
-    unless ( -e "$amandahomedir/vtapes" ) { 
-	mkpath ( "$amandahomedir/vtapes", $def_perm) ||
-	    ( &mprint ("WARNING: mkpath $amandahomedir/$config/vtapes failed: $!\n"), return );
+    unless ( -e "$amandastatedir/vtapes" ) { 
+	mkpath ( "$amandastatedir/vtapes", $def_perm) ||
+	    ( &mprint ("WARNING: mkpath $amandastatedir/$config/vtapes failed: $!\n"), return );
     }
-    unless ( -e "$amandahomedir/vtapes/$config" ) { 
-	mkpath ( "$amandahomedir/vtapes/$config", $def_perm) ||
-	    ( &mprint ("WARNING: mkpath $amandahomedir/vtapes/$config failed: $!\n"), return );
+    unless ( -e "$amandastatedir/vtapes/$config" ) { 
+	mkpath ( "$amandastatedir/vtapes/$config", $def_perm) ||
+	    ( &mprint ("WARNING: mkpath $amandastatedir/vtapes/$config failed: $!\n"), return );
     }
-	$parentdir="$amandahomedir/vtapes/$config";
+	$parentdir="$amandastatedir/vtapes/$config";
 }
 
 # create and label vtape
@@ -243,7 +266,7 @@ sub create_vtape {
 	}
 	unless ( -e $parentdir){
 		&mprint ("WARNING: tapedev $parentdir does not exists, vtapes creation failed!\n");
-		&mprint ("Please create $parentdir and $confdir/$config and rerun the same command or else create vtapes manually.\n");
+		&mprint ("Please create $parentdir and $amandastatedir/$config and rerun the same command or else create vtapes manually.\n");
 		$vtape_err++;
 		return;
 	}
@@ -417,7 +440,7 @@ sub create_customconf{
 
 
 sub check_xinetd{
-    &mprint ("/var/lib/amanda/example/xinetd.amandaserver contains the latest Amanda server daemon configuration.\n");
+    &mprint ("$amdatadir/example/xinetd.amandaserver contains the latest Amanda server daemon configuration.\n");
     &mprint ("Please merge it to /etc/xinetd.d/amandaserver.\n");
 }
 
@@ -571,6 +594,8 @@ if ( defined $template ) {
 
 }
 
+&check_parent_directories;
+
 &create_conf_dir;
 
 if ($need_changer) {
@@ -642,11 +667,11 @@ if ( defined $template ) {
 		$tapedev="$def_tapedev/$config";
 		&copy_template_file($template);
 		if ($template ne "harddisk") {
-		  unless ( -e "$amandahomedir/holdings/$config" ) {
+		  unless ( -e "$amandastatedir/holdings/$config" ) {
 		    &create_holding;
 		  }
 		} else {  # harddisk and template only
-		  unless ( -e "$amandahomedir/vtapes/$config" || defined $novtape ) {
+		  unless ( -e "$amandastatedir/vtapes/$config" || defined $novtape ) {
 		    &create_vtape;
 		  }
 		}

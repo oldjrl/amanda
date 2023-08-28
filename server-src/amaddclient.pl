@@ -32,7 +32,8 @@ my $tmpdir="@AMANDA_DBGDIR@";
 
 my $prefix="@prefix@";
 my $localstatedir="@localstatedir@";
-my $amandahomedir="$localstatedir/lib/amanda";
+my $amandastatedir="@amandastatedir@";
+my $amandahomedir="@amandahomedir@";
 
 my $amanda_user="@CLIENT_LOGIN@";
 my $amanda_group="disk";
@@ -171,8 +172,15 @@ sub dle_mod {
     unlink("$confdir/$config/disklist.tmp");
     exit 0;
 }
-    
 
+sub check_ssh {
+    system "$ssh", "$amanda_user\@$client", "pwd";
+    $exit_value  = $? >> 8;
+    if ( $exit_value !=0 ) {
+	&mprint ("ERROR: Cannot ssh as $amanda_user to $client\n");
+	&log_and_die ("Verify ssh keys are set appropriately\n");
+    }
+}
 
 #main
 my $ret=0;
@@ -380,6 +388,8 @@ unless ( $no_client_update ) {
      
     &mprint ("Attempting to update $file on $client\n");
 
+    &check_ssh ();
+    
     chdir ("$amandahomedir");
     system "$scp", "$scp_opt1", "$scp_opt2", "$amanda_user\@$client:$file", "$file.tmp";
     $exit_value  = $? >> 8;
@@ -450,6 +460,9 @@ open (ACFILE, ">$client_file") || &log_and_die ("ERROR: Cannot open $client_file
 
 close (ACFILE);
 &mprint ("Creating  $client_conf_dir on $client\n");
+
+&check_ssh ();
+
 system "$ssh", "$ssh_opt", "$amanda_user\@$client", "$mkdir", "$client_conf_dir";
 $exit_value  = $? >> 8;
 if ( $exit_value !=0 ) {
@@ -471,17 +484,17 @@ if ( $exit_value !=0 ) {
 
 #create gnutar_list_dir
 if ( defined $tarlist && !defined $no_client_update ) {
- system "$ssh", "$ssh_opt", "$amanda_user\@$client", "$mkdir", "$gnutar_list_dir";
+ system "$ssh", "$ssh_opt", "$amanda_user\@$client", "$mkdir", "$tarlist";
  $exit_value  = $? >> 8;
 if ( $exit_value !=0 ) {
-  &mprint ("WARNING: Cannot create $gnutar_list_dir on $client\n"); 
-  &mprint ("Please create $gnutar_list_dir on $client manually\n");
+  &mprint ("WARNING: Cannot create $tarlist on $client\n"); 
+  &mprint ("Please create $tarlist on $client manually\n");
 } else { 
   &mprint ("$client_file created on $client successfully\n");
 }
 }
 
-&mprint ("File /var/lib/amanda/example/xinetd.amandaclient contains the latest Amanda client daemon configuration.\n");
+&mprint ("File $amdatadir/example/xinetd.amandaclient contains the latest Amanda client daemon configuration.\n");
 &mprint ("Please merge it to /etc/xinetd.d/amandaclient.\n");
  
 $ENV{'PATH'} = $oldPATH;

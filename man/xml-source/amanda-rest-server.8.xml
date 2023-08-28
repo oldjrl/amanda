@@ -70,7 +70,7 @@ start the Amanda Rest Server.  </para>
 </refsect1>
 
 <refsect1><title>CONFIGURATIONS</title>
-<para>The configurationmust be in the <emphasis remap='B'>/etc/amanda/amanda.conf</emphasis> file.</para>
+<para>The configurationmust be in the <emphasis remap='B'>@CONFIG_DIR@/amanda.conf</emphasis> file.</para>
 <variablelist remap='TP'>
 
   <varlistentry>

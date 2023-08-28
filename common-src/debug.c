@@ -770,8 +770,8 @@ debug_ressource_usage(void)
 
     getrusage(RUSAGE_SELF, &usage);
 
-    g_debug("ru_utime   : %ld", usage.ru_utime.tv_sec);
-    g_debug("ru_stime   : %ld", usage.ru_stime.tv_sec);
+    g_debug("ru_utime   : %lld", usage.ru_utime.tv_sec);
+    g_debug("ru_stime   : %lld", usage.ru_stime.tv_sec);
     g_debug("ru_maxrss  : %ld", usage.ru_maxrss  );
     g_debug("ru_ixrss   : %ld", usage.ru_ixrss   );
     g_debug("ru_idrss   : %ld", usage.ru_idrss   );

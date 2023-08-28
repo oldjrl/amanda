@@ -50,13 +50,17 @@ startclock(void)
 {
     clock_running = 1;
     
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+    start_time = g_get_monotonic_time();
+#else
     g_get_current_time(&start_time);
+#endif
 }
 
 times_t
 stopclock(void)
 {
-    GTimeVal diff;
+    times_t diff;
 
     diff = curclock();
 
@@ -67,14 +71,18 @@ stopclock(void)
 times_t
 curclock(void)
 {
-    GTimeVal end_time;
+    times_t end_time;
 
     if(!clock_running) {
 	g_fprintf(stderr,_("curclock botch\n"));
 	exit(1);
     }
 
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+    end_time = g_get_monotonic_time();
+#else
     g_get_current_time(&end_time);
+#endif
     return timesub(end_time,start_time);
 }
 
@@ -88,16 +96,24 @@ walltime_str(
 
     /* tv_sec/tv_usec are longs on some systems */
     g_snprintf(str[n], sizeof(str[n]), "%lu.%03lu",
-	     (unsigned long)t.tv_sec,
-	     (unsigned long)t.tv_usec/1000);
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+	       (unsigned long)(t / G_USEC_PER_SEC),
+	       (unsigned long)((t % G_USEC_PER_SEC)/1000));
+#else
+	       (unsigned long)t.tv_sec,
+	       (unsigned long)t.tv_usec/1000);
+#endif
     s = str[n++];
     n %= G_N_ELEMENTS(str);
     return s;
 }
 
-GTimeVal timesub(GTimeVal end, GTimeVal start) {
-    GTimeVal diff;
+times_t timesub(times_t end, times_t start) {
+    times_t diff;
 
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+    diff = end - start;
+#else
     if(end.tv_usec < start.tv_usec) { /* borrow 1 sec */
 	if (end.tv_sec > 0)
 	    end.tv_sec -= 1;
@@ -109,13 +125,17 @@ GTimeVal timesub(GTimeVal end, GTimeVal start) {
 	diff.tv_sec = end.tv_sec - start.tv_sec;
     else
 	diff.tv_sec = 0;
+#endif
 
     return diff;
 }
 
-GTimeVal timeadd(GTimeVal a, GTimeVal b) {
-    GTimeVal sum;
+times_t timeadd(times_t a, times_t b) {
+    times_t sum;
 
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+    sum = a + b;
+#else
     sum.tv_sec = a.tv_sec + b.tv_sec;
     sum.tv_usec = a.tv_usec + b.tv_usec;
 
@@ -123,17 +143,28 @@ GTimeVal timeadd(GTimeVal a, GTimeVal b) {
 	sum.tv_usec -= 1000000;
 	sum.tv_sec += 1;
     }
+#endif
     return sum;
 }
 
-double g_timeval_to_double(GTimeVal v) {
+double g_timeval_to_double(times_t v) {
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+  return (double) v / G_USEC_PER_SEC;
+#else
     return v.tv_sec + ((double)v.tv_usec) / G_USEC_PER_SEC;
+#endif
 }
 
 void amanda_gettimeofday(struct timeval * timeval_time) {
-    GTimeVal gtimeval_time;
+    times_t gtimeval_time;
 
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+    gtimeval_time = g_get_real_time();
+    timeval_time->tv_sec = gtimeval_time / G_USEC_PER_SEC;
+    timeval_time->tv_usec = gtimeval_time % G_USEC_PER_SEC;
+#else
     g_get_current_time(&gtimeval_time);
     timeval_time->tv_sec = gtimeval_time.tv_sec;
     timeval_time->tv_usec = gtimeval_time.tv_usec;
+#endif
 }

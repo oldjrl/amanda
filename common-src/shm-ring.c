@@ -104,7 +104,7 @@ void
 clean_shm_ring(void)
 {
     if (shm_ring_mutex) {
-	g_mutex_free(shm_ring_mutex);
+	G_MUTEX_FREE(shm_ring_mutex);
     }
 }
 

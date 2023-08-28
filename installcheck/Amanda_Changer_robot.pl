@@ -350,7 +350,7 @@ Amanda::MainLoop::run();
     my $dashed_mtx_state_file = $mtx_state_file;
     $dashed_mtx_state_file =~ tr/a-zA-Z0-9/-/cs;
     $dashed_mtx_state_file =~ s/^-*//;
-    is($chg->{'statefile'}, "$localstatedir/amanda/chg-robot-$dashed_mtx_state_file",
+    is($chg->{'statefile'}, "$amandastatedir/chg-robot-$dashed_mtx_state_file",
         "statefile calculated correctly");
     $chg->quit();
 

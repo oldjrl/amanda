@@ -313,7 +313,8 @@ test_intra_proc_locking(void)
 
     thd_fds[0] = outpipe[0];
     thd_fds[1] = inpipe[1];
-    thd = g_thread_create((GThreadFunc)test_intra_proc_locking_thd, (gpointer)thd_fds, TRUE, NULL);
+    thd = G_THREAD_CREATE("thread-func-test", (GThreadFunc)test_intra_proc_locking_thd, (gpointer)thd_fds,
+			  TRUE, NULL);
 
     rv = locking_master(inpipe[0], outpipe[1]);
 

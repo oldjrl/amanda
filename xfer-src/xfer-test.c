@@ -102,15 +102,17 @@ source_readfd_thread(
     gpointer data)
 {
     XferSourceReadfd *self = XFER_SOURCE_READFD(data);
-    char buf[TEST_XFER_SIZE];
+    static const int buf_size = TEST_XFER_SIZE;
+    char *bufp = g_malloc(buf_size);
     int fd = self->write_fd;
 
-    simpleprng_fill_buffer(&self->prng, buf, sizeof(buf));
+    simpleprng_fill_buffer(&self->prng, bufp, buf_size);
 
-    if (full_write(fd, buf, sizeof(buf)) < sizeof(buf)) {
+    if (full_write(fd, bufp, buf_size) < buf_size) {
 	error("error in full_write(): %s", strerror(errno));
     }
 
+    g_free(bufp);
     close(fd);
 
     xfer_queue_message(XFER_ELEMENT(self)->xfer, xmsg_new(XFER_ELEMENT(self), XMSG_DONE, 0));
@@ -141,7 +143,7 @@ source_readfd_start_impl(
     XferElement *elt)
 {
     XferSourceReadfd *self = XFER_SOURCE_READFD(elt);
-    self->thread = g_thread_create(source_readfd_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-readfd", source_readfd_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -213,18 +215,20 @@ source_writefd_thread(
 {
     XferSourceWritefd *self = XFER_SOURCE_WRITEFD(data);
     XferElement *elt = XFER_ELEMENT(data);
-    char buf[TEST_XFER_SIZE];
+    static const int buf_size = TEST_XFER_SIZE;
+    char *bufp = g_malloc(buf_size);
     int fd = xfer_element_swap_input_fd(elt->downstream, -1);
 
     /* this shouldn't happen, although non-test elements handle it gracefully */
     g_assert(fd != -1);
 
-    simpleprng_fill_buffer(&self->prng, buf, sizeof(buf));
+    simpleprng_fill_buffer(&self->prng, bufp, buf_size);
 
-    if (full_write(fd, buf, sizeof(buf)) < sizeof(buf)) {
+    if (full_write(fd, bufp, buf_size) < buf_size) {
 	error("error in full_write(): %s", strerror(errno));
     }
 
+    g_free(bufp);
     close(fd);
 
     xfer_queue_message(XFER_ELEMENT(self)->xfer, xmsg_new(XFER_ELEMENT(self), XMSG_DONE, 0));
@@ -240,7 +244,7 @@ source_writefd_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(source_writefd_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-writefd", source_writefd_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -324,8 +328,6 @@ source_push_thread(
     buf = g_malloc(TEST_BLOCK_EXTRA);
     simpleprng_fill_buffer(&self->prng, buf, TEST_BLOCK_EXTRA);
     xfer_element_push_buffer(XFER_ELEMENT(self)->downstream, buf, TEST_BLOCK_EXTRA);
-    buf = NULL;
-
     /* send EOF */
     xfer_element_push_buffer(XFER_ELEMENT(self)->downstream, NULL, 0);
 
@@ -342,7 +344,7 @@ source_push_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(source_push_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-push", source_push_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -524,8 +526,8 @@ source_listen_thread(
 	error("socket(): %s", strerror(errno));
     }
     if (connect(sock, (struct sockaddr *)addrs, SS_LEN(addrs)) < 0) {
-	error("source_listen_thread - connect(%d, 0x%x (%s), %d): %s",
-	      sock, addrs, str_sockaddr(addrs), SS_LEN(addrs),
+	error("source_listen_thread - connect(%d, 0x%lx (%s), %ld): %s",
+	      sock, (unsigned long)addrs, str_sockaddr(addrs), SS_LEN(addrs),
 	      strerror(errno));
     }
 
@@ -562,7 +564,7 @@ source_listen_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(source_listen_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-listen", source_listen_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -716,7 +718,7 @@ source_connect_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(source_connect_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("source-connect", source_connect_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -788,7 +790,8 @@ dest_readfd_thread(
 {
     XferDestReadfd *self = XFER_DEST_READFD(data);
     XferElement *elt = XFER_ELEMENT(data);
-    char buf[TEST_XFER_SIZE];
+    static const int buf_size = TEST_XFER_SIZE;
+    char *bufp = g_malloc(buf_size);
     size_t remaining;
     int fd = xfer_element_swap_output_fd(elt->upstream, -1);
     ssize_t nread;
@@ -796,21 +799,22 @@ dest_readfd_thread(
     /* this shouldn't happen, although non-test elements handle it gracefully */
     g_assert(fd != -1);
 
-    remaining = sizeof(buf);
+    remaining = buf_size;
     while (remaining) {
-	if ((nread = read(fd, buf+sizeof(buf)-remaining, remaining)) <= 0) {
+	if ((nread = read(fd, bufp+buf_size-remaining, remaining)) <= 0) {
 	    error("error in read(): %s", strerror(errno));
 	}
 	remaining -= nread;
     }
 
     /* we should be at EOF here */
-    if ((nread = read(fd, buf, 10)) != 0)
+    if ((nread = read(fd, bufp, 10)) != 0)
 	g_critical("too much data entering XferDestReadfd");
 
-    if (!simpleprng_verify_buffer(&self->prng, buf, TEST_XFER_SIZE))
+    if (!simpleprng_verify_buffer(&self->prng, bufp, buf_size))
 	g_critical("data entering XferDestReadfd does not match");
 
+    g_free(bufp);
     close(fd);
 
     xfer_queue_message(XFER_ELEMENT(self)->xfer, xmsg_new(XFER_ELEMENT(self), XMSG_DONE, 0));
@@ -826,7 +830,7 @@ dest_readfd_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(dest_readfd_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-readfd", dest_readfd_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -897,26 +901,28 @@ dest_writefd_thread(
     gpointer data)
 {
     XferDestWritefd *self = XFER_DEST_WRITEFD(data);
-    char buf[TEST_XFER_SIZE];
+    static const int buf_size = TEST_XFER_SIZE;
+    char *bufp = g_malloc(buf_size);
     size_t remaining;
     int fd = self->read_fd;
     ssize_t nread;
 
-    remaining = sizeof(buf);
+    remaining = buf_size;
     while (remaining) {
-	if ((nread = read(fd, buf+sizeof(buf)-remaining, remaining)) <= 0) {
+	if ((nread = read(fd, bufp+buf_size-remaining, remaining)) <= 0) {
 	    error("error in read(): %s", strerror(errno));
 	}
 	remaining -= nread;
     }
 
     /* we should be at EOF here */
-    if ((nread = read(fd, buf, 10)) != 0)
+    if ((nread = read(fd, bufp, 10)) != 0)
 	g_critical("too much data entering XferDestWritefd");
 
-    if (!simpleprng_verify_buffer(&self->prng, buf, TEST_XFER_SIZE))
+    if (!simpleprng_verify_buffer(&self->prng, bufp, buf_size))
 	g_critical("data entering XferDestWritefd does not match");
 
+    g_free(bufp);
     close(fd);
 
     xfer_queue_message(XFER_ELEMENT(self)->xfer, xmsg_new(XFER_ELEMENT(self), XMSG_DONE, 0));
@@ -947,7 +953,7 @@ dest_writefd_start_impl(
     XferElement *elt)
 {
     XferDestWritefd *self = XFER_DEST_WRITEFD(elt);
-    self->thread = g_thread_create(dest_writefd_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-writefd", dest_writefd_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -1116,21 +1122,24 @@ dest_pull_thread(
     gpointer data)
 {
     XferDestPull *self = XFER_DEST_PULL(data);
-    char fullbuf[TEST_XFER_SIZE];
+    static const int buf_size = TEST_XFER_SIZE;
+    char *fullbufp = g_malloc(buf_size);
     char *buf;
     size_t bufpos = 0;
     size_t size;
 
     while ((buf = xfer_element_pull_buffer(XFER_ELEMENT(self)->upstream, &size))) {
 	g_assert(bufpos + size <= TEST_XFER_SIZE);
-	memcpy(fullbuf + bufpos, buf, size);
+	memcpy(fullbufp + bufpos, buf, size);
 	bufpos += size;
     }
 
     /* we're at EOF, so verify we got the right bytes */
     g_assert(bufpos == TEST_XFER_SIZE);
-    if (!simpleprng_verify_buffer(&self->prng, fullbuf, TEST_XFER_SIZE))
+    if (!simpleprng_verify_buffer(&self->prng, fullbufp, TEST_XFER_SIZE))
 	g_critical("data entering XferDestPull does not match");
+
+    g_free(fullbufp);
 
     xfer_queue_message(XFER_ELEMENT(self)->xfer, xmsg_new(XFER_ELEMENT(self), XMSG_DONE, 0));
 
@@ -1145,7 +1154,7 @@ dest_pull_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(dest_pull_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-pull", dest_pull_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -1246,6 +1255,8 @@ dest_listen_thread(
     if (!simpleprng_verify_buffer(&self->prng, buf, TEST_XFER_SIZE))
 	g_critical("data entering XferDestListen does not match");
 
+    g_free(buf);
+
     xfer_queue_message(XFER_ELEMENT(self)->xfer, xmsg_new(XFER_ELEMENT(self), XMSG_DONE, 0));
 
     return NULL;
@@ -1291,7 +1302,7 @@ dest_listen_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(dest_listen_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-listen", dest_listen_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }
@@ -1383,8 +1394,8 @@ dest_connect_thread(
 	error("socket(): %s", strerror(errno));
     }
     if (connect(sock, (struct sockaddr *)&addr, SS_LEN(&addr)) < 0) {
-	error("dest_connect_thread - connect(%d, 0x%x (%s), %d): %s",
-	      sock, &addr, str_sockaddr(&addr), SS_LEN(&addr),
+	error("dest_connect_thread - connect(%d, 0x%lx (%s), %ld): %s",
+	      sock, (unsigned long)&addr, str_sockaddr(&addr), SS_LEN(&addr),
 		 strerror(errno));
     }
 
@@ -1402,6 +1413,7 @@ dest_connect_thread(
     if (!simpleprng_verify_buffer(&self->prng, buf, TEST_XFER_SIZE))
 	g_critical("data entering XferDestConnect does not match");
 
+    g_free(buf);
     xfer_queue_message(XFER_ELEMENT(self)->xfer, xmsg_new(XFER_ELEMENT(self), XMSG_DONE, 0));
 
     return NULL;
@@ -1415,7 +1427,7 @@ dest_connect_start_impl(
 
     simpleprng_seed(&self->prng, RANDOM_SEED);
 
-    self->thread = g_thread_create(dest_connect_thread, (gpointer)self, FALSE, NULL);
+    self->thread = G_THREAD_CREATE("dest-connect", dest_connect_thread, (gpointer)self, FALSE, NULL);
 
     return TRUE;
 }

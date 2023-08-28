@@ -55,10 +55,9 @@ xfer_new(
     g_assert(nelements >= 2);
 
     xfer->status = XFER_INIT;
-    xfer->status_mutex = g_mutex_new();
-    xfer->status_cond = g_cond_new();
-    xfer->fd_mutex = g_mutex_new();
-
+    xfer->status_mutex = G_MUTEX_NEW();
+    xfer->status_cond = G_COND_NEW();
+    xfer->fd_mutex = G_MUTEX_NEW();
     xfer->refcount = 1;
     xfer->repr = NULL;
 
@@ -117,9 +116,9 @@ xfer_unref(
     }
     g_async_queue_unref(xfer->queue);
 
-    g_mutex_free(xfer->status_mutex);
-    g_cond_free(xfer->status_cond);
-    g_mutex_free(xfer->fd_mutex);
+    G_MUTEX_FREE(xfer->status_mutex);
+    G_COND_FREE(xfer->status_cond);
+    G_MUTEX_FREE(xfer->fd_mutex);
 
     /* Free our references to the elements, and also set the 'xfer'
      * attribute of each to NULL, making them "unattached" (although 

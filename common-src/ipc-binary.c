@@ -22,6 +22,7 @@
  */
 
 #include "amanda.h"
+#include "glib-util.h"
 #include "ipc-binary.h"
 
 struct ipc_binary_proto_t {
@@ -56,7 +57,7 @@ expand_buffer(
     /* allocate space in the buffer if necessary */
     if (buf->offset + new_len > buf->size) {
 	if (buf->offset != 0 && new_len <= buf->size) {
-	    g_memmove(buf->buf,
+	    G_MEMMOVE(buf->buf,
 		      buf->buf + buf->offset,
 		      buf->length);
 	    buf->offset = 0;
@@ -75,7 +76,7 @@ add_to_buffer(
 {
     expand_buffer(buf, size);
 
-    g_memmove(buf->buf + buf->offset + buf->length, data, size);
+    G_MEMMOVE(buf->buf + buf->offset + buf->length, data, size);
     buf->length += size;
 }
 
@@ -255,7 +256,7 @@ ipc_binary_add_arg(
     }
 
     if (!take_memory) {
-	data = g_memdup(data, size);
+	data = G_MEMDUP(data, size);
     }
 
     msg->args[arg_id].len = size;
@@ -450,12 +451,12 @@ ipc_binary_poll_message(
 
 	    /* copy and terminate the string */
 	    data = g_malloc(arglen+1);
-	    g_memmove(data, p, arglen);
+	    G_MEMMOVE(data, p, arglen);
 	    data[arglen] = '\0';
 	    msg->args[arg_id].data = (gpointer)data;
 	    msg->args[arg_id].len = arglen;
 	} else {
-	    msg->args[arg_id].data = g_memdup(p, arglen);
+	    msg->args[arg_id].data = G_MEMDUP(p, arglen);
 	    msg->args[arg_id].len = arglen;
 	}
 
@@ -528,7 +529,7 @@ ipc_binary_queue_message(
 	p = put_guint32(p, msg->args[i].len);
 	p = put_guint16(p, i);
 
-	g_memmove(p, msg->args[i].data, msg->args[i].len);
+	G_MEMMOVE(p, msg->args[i].data, msg->args[i].len);
 	p += msg->args[i].len;
     }
     chan->out.length += msg_len;

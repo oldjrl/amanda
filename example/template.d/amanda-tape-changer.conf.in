@@ -19,7 +19,7 @@ tpchanger "my_robot"
 tapetype HP-DAT			# what kind of tape it is (see tapetypes below)
 
 holdingdisk hd2 {
-    directory "/var/lib/amanda/holdings/@DEFAULT_CONFIG@"
+    directory "@amandastatedir@/holdings/@DEFAULT_CONFIG@"
     use 1000 Mb
     }
 

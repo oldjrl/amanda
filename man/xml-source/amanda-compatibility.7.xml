@@ -151,7 +151,7 @@ subdirectories: libraries are now installed in
 <filename>$libexecdir/amanda</filename>.</para>
 
 <para> The amandates file, previously at <filename>/etc/amandates</filename>,
-is now at <filename>$localstatedir/amanda/amandates</filename>.  You may want
+is now at <filename>$amandastatedir/amandates</filename>.  You may want
 to move your existing <filename>/etc/amandates</filename> when you upgrade
 Amanda.</para>
 
