@@ -222,6 +222,7 @@ sub planner_driver_pipeline {
     my @no_vault = $self->{'no_vault'} ? ('--no-vault'):();
     my @from_client = $self->{'from_client'} ? ('--from-client'):();
     my @exact_match = $self->{'exact_match'} ? ('--exact-match'):();
+    my @debugwait = $self->{'debugwait'} ? ('--debugwait'):();
     my @log_filename = ('--log-filename', $self->{'trace_log_filename'});
     my @config_overrides = ();
     if (defined $self->{'config_overrides'} and
@@ -271,9 +272,9 @@ sub planner_driver_pipeline {
 	POSIX::dup2(fileno($self->{'amdump_log'}), 1); # driver does lots of logging to stdout..
 	POSIX::close($null);
 	POSIX::dup2(fileno($self->{'amdump_log'}), 2);
-	debug("exec: " . join(' ', $driver, $self->{'config'}, @log_filename, @no_taper, @no_dump, @no_flush, @no_vault, @from_client, @config_overrides));
+	debug("exec: " . join(' ', $driver, @debugwait, $self->{'config'}, @log_filename, @no_taper, @no_dump, @no_flush, @no_vault, @from_client, @config_overrides));
 	close($self->{'amdump_log'});
-	my @args = ($self->{'config'}, @log_filename, @no_taper, @no_dump, @no_flush, @no_vault, @from_client, @config_overrides);
+	my @args = (@debugwait, $self->{'config'}, @log_filename, @no_taper, @no_dump, @no_flush, @no_vault, @from_client, @config_overrides);
 	debug("exec $driver " . join(' ', @args));
 	exec $driver, @args;
 	die "Could not exec $driver: $!";

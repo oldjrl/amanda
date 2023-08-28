@@ -39,7 +39,7 @@ use Amanda::Amdump;
 sub usage {
     my ($msg) = @_;
     print STDERR <<EOF;
-Usage: amdump <conf> [--no-taper] [--no-dump] [--no-flush] [--no-vault] [--from-client] [--exact-match] [-o configoption]* [host/disk]*
+Usage: amdump <conf> [--no-taper] [--no-dump] [--no-flush] [--no-vault] [--from-client] [--exact-match] [--debugwait] [-o configoption]* [host/disk]*
 EOF
     print STDERR "$msg\n" if $msg;
     exit 1;
@@ -56,6 +56,7 @@ my $opt_no_flush = 0;
 my $opt_no_vault = 0;
 my $opt_from_client = 0;
 my $opt_exact_match = 0;
+my $opt_debugwait = 0;
 
 debug("Arguments: " . join(' ', @ARGV));
 Getopt::Long::Configure(qw(bundling));
@@ -68,6 +69,7 @@ GetOptions(
     'no-vault' => \$opt_no_vault,
     'from-client' => \$opt_from_client,
     'exact-match' => \$opt_exact_match,
+    'debugwait' => \$opt_debugwait,
     'o=s' => sub {
 	push @config_overrides_opts, "-o" . $_[1];
 	add_config_override_opt($config_overrides, $_[1]);
@@ -106,6 +108,7 @@ my ($amdump, @messages) = Amanda::Amdump->new(config      => $config_name,
 				 no_vault    => $opt_no_vault,
 				 from_client => $opt_from_client,
 				 exact_match => $opt_exact_match,
+				 debugwait   => $opt_debugwait,
 				 config_overrides => \@config_overrides_opts,
 				 hostdisk    => $hostdisk,
 				 user_msg    => \&user_msg);
