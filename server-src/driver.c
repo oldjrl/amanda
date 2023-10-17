@@ -156,10 +156,11 @@ static void start_some_dumps(schedlist_t *rq);
 static void continue_port_dumps(void);
 static void update_failed_dump(sched_t *sp);
 static int no_taper_flushing(void);
+static gboolean no_taper_active(void);
 static int active_dumper(void);
 static void fix_index_header(sched_t *sp);
 static int all_tapeq_empty(void);
-static gboolean is_volume_done(taper_t *taper);
+static gboolean is_all_work_done(void);
 static gboolean is_label_in_use(char *label);
 static void add_label_in_use(char *label);
 static void remove_label_in_use(char *label);
@@ -2223,65 +2224,30 @@ all_tapeq_empty(void)
     return 1;
 }
 
-/* Have we finished writing everything to this volume? */
-static gboolean
-is_volume_done(taper_t *taper)
+/* Have we finished everything we had planned on doing? */
+static gboolean is_all_work_done(void)
 {
-    wtaper_t *wtaper;
-    gboolean done = TRUE;
-    TaperState available = TAPER_STATE_DEFAULT|TAPER_STATE_INIT|TAPER_STATE_RESERVATION|TAPER_STATE_IDLE|TAPER_STATE_DONE|TAPER_STATE_TAPE_STARTED;
-    char *storage_name = taper->storage_name;
-    GList  *slist;
-    dumper_t *dumper;
-    sched_t *sp;
+  gboolean done = FALSE;
+  schedlist_t *allqs[] = {&runq, &directq, &roomq, NULL};
+  schedlist_t **qp;
+  dumper_t *dumper;
 
-    /* Are there any planned dumps to this taper/volume? */
-    for (slist = runq.head; slist != NULL; slist = slist->next) {
-	sp = get_sched(slist);
-	if (sp->prefered_taper == taper || dump_match_selection(storage_name, sp)) {
-	    done = FALSE;
-	    break;
-	}
+  for (qp = allqs; *qp; qp += 1) {
+    if (!empty(**qp)) {
+      return FALSE;
     }
+  }
 
-    /* Ae there any dumpers that will use this storage? */
-    for (dumper = dmptable; dumper < (dmptable+inparallel); dumper++) {
-        if (dumper->job && dumper->job->wtaper &&
-	    (dumper->job->wtaper->taper == taper ||
-	     (dumper->job->sched && 
-	      (dumper->job->sched->prefered_taper == taper || dump_match_selection(storage_name, dumper->job->sched))))
-	     ) {
-	    done = FALSE;
-	    break;
-	}
+  for (dumper = dmptable; dumper < (dmptable+inparallel); dumper++) {
+    if (dumper->busy) {
+      return FALSE;
     }
+  }
 
-    /* Are there any direct dumps to this volume/taper? */
-    for (slist = directq.head; slist != NULL; slist = slist->next) {
-	sp = get_sched(slist);
-	if (sp->prefered_taper == taper || dump_match_selection(storage_name, sp)) {
-	    done = FALSE;
-	    break;
-	}
-    }
-
-    /* Ensure we have nothing on our tapeq */
-    if (!empty(taper->tapeq)) {
-        done = FALSE;
-    } else {
-        /* Ensure all our workers are not busy */
-        for (wtaper = taper->wtapetable;
-	     wtaper < taper->wtapetable + taper->nb_worker;
-	     wtaper++) {
-	  /* We currently can't use wtaper->ready since it isn't set
-	     if the worker has never been used. */
-	  if (wtaper->state & ~available) {
-	      done = FALSE;
-	      break;
-	  }
-	}
-    }
-    return done;
+  if (no_taper_active() && all_tapeq_empty()) {
+    done = TRUE;
+  }
+  return done;
 }
 
 static void
@@ -2358,6 +2324,10 @@ handle_taper_result(
 	    start_some_dumps(&runq);
 	    start_a_flush();
 	    start_a_vault();
+	    /* If we've finished, set a flag to cause the event_loop to quit. */
+	    if (is_all_work_done()) {
+	      event_loop_quit();
+	    }
 	    break;
 
 	case FAILED:	/* FAILED <worker> <handle> INPUT-* TAPE-* <input err mesg> <tape err mesg> */
@@ -2582,6 +2552,10 @@ handle_taper_result(
 		start_some_dumps(&runq);
 		start_a_flush();
 		start_a_vault();
+		/* If we've finished, set a flag to cause the event_loop to quit. */
+		if (is_all_work_done()) {
+		  event_loop_quit();
+		}
 	    }
 	    break;
 
@@ -2793,6 +2767,10 @@ handle_taper_result(
 	    start_some_dumps(&runq);
 	    start_a_flush();
 	    start_a_vault();
+	    /* If we've finished, set a flag to cause the event_loop to quit. */
+	    if (is_all_work_done()) {
+	      event_loop_quit();
+	    }
 	    break;
 
         case OPENED_SOURCE_VOLUME: /* <worker_name> <handle> <label> */
@@ -2828,6 +2806,10 @@ handle_taper_result(
 	    start_some_dumps(&runq);
 	    start_a_flush();
 	    start_a_vault();
+	    /* If we've finished, set a flag to cause the event_loop to quit. */
+	    if (is_all_work_done()) {
+	      event_loop_quit();
+	    }
 	    break;
 
         case BOGUS:
@@ -2884,6 +2866,12 @@ handle_taper_result(
 	g_strfreev(result_argv);
 
 	if (wtaper && job && job->sched && wtaper->result != LAST_TOK) {
+	    if (wtaper->nb_dle >= taper->max_dle_by_volume) {
+		taper->nb_wait_reply++;
+		wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
+		taper_cmd(taper, wtaper, CLOSE_VOLUME, job->sched, NULL, 0, NULL);
+		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
+	    }
 	    if (job->sched->action == ACTION_DUMP_TO_TAPE) {
 		assert(job->dumper != NULL);
 		if (job->dumper->result != LAST_TOK) {
@@ -2897,20 +2885,16 @@ handle_taper_result(
 	    } else {
 		g_critical("Invalid job->sched->action %s %s %d", job->sched->disk->host->hostname, job->sched->disk->name, job->sched->action);
 	    }
-	    if (wtaper->nb_dle >= taper->max_dle_by_volume ||
-		(wtaper->result == DONE && is_volume_done(taper))
-		) {
-		taper->nb_wait_reply++;
-		wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
-		taper_cmd(taper, wtaper, CLOSE_VOLUME, job->sched, NULL, 0, NULL);
-		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
-	    }
 	}
 
     } while(areads_dataready(taper->fd));
     start_some_dumps(&runq);
     start_a_flush();
     start_a_vault();
+    /* If we've finished, set a flag to cause the event_loop to quit. */
+    if (is_all_work_done()) {
+      event_loop_quit();
+    }
 }
 
 static void
@@ -3044,6 +3028,10 @@ vault_taper_result(
     start_some_dumps(&runq);
     start_a_flush();
     start_a_vault();
+    /* If we've finished, set a flag to cause the event_loop to quit. */
+    if (is_all_work_done()) {
+      event_loop_quit();
+    }
 }
 
 
@@ -3197,6 +3185,10 @@ file_taper_result(
     start_some_dumps(&runq);
     start_a_flush();
     start_a_vault();
+    /* If we've finished, set a flag to cause the event_loop to quit. */
+    if (is_all_work_done()) {
+      event_loop_quit();
+    }
 }
 
 static void
@@ -3317,6 +3309,10 @@ dumper_taper_result(
     start_some_dumps(&runq);
     start_a_flush();
     start_a_vault();
+    /* If we've finished, set a flag to cause the event_loop to quit. */
+    if (is_all_work_done()) {
+      event_loop_quit();
+    }
 }
 
 
@@ -3537,6 +3533,10 @@ dumper_chunker_result(
     start_some_dumps(&runq);
     start_a_flush();
     start_a_vault();
+    /* If we've finished, set a flag to cause the event_loop to quit. */
+    if (is_all_work_done()) {
+      event_loop_quit();
+    }
 }
 
 static gboolean
@@ -4665,6 +4665,10 @@ read_schedule(
     start_some_dumps(&runq);
     start_a_flush();
     start_a_vault();
+    /* If we've finished, set a flag to cause the event_loop to quit. */
+    if (is_all_work_done()) {
+      event_loop_quit();
+    }
 }
 
 static void
@@ -5813,6 +5817,38 @@ no_taper_flushing(void)
 	}
     }
     return 1;
+}
+
+/* Check for any active tapers.
+   This is similar to no_taper_flushing(), but slightly more general.
+ */
+static gboolean
+no_taper_active(void)
+{
+    taper_t  *taper;
+    wtaper_t *wtaper;
+    TaperState taper_inactive = TAPER_STATE_DEFAULT
+      | TAPER_STATE_INIT
+      | TAPER_STATE_RESERVATION
+      | TAPER_STATE_IDLE
+      | TAPER_STATE_DONE
+      | TAPER_STATE_TAPE_STARTED;
+
+    for (taper = tapetable; taper < tapetable + nb_storage; taper++) {
+	if (taper->storage_name) {
+	    for (wtaper = taper->wtapetable;
+		wtaper < taper->wtapetable + taper->nb_worker;
+		wtaper++) {
+	      /* If the taper is in some state other than the inactive ones,
+		 assume it is active.
+	      */
+	      if (wtaper->state & ~taper_inactive) {
+		return FALSE;
+	      }
+	    }
+	}
+    }
+    return TRUE;
 }
 
 static int
