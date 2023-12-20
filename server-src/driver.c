@@ -170,6 +170,7 @@ static void add_label_in_use(char *label);
 static void remove_label_in_use(char *label);
 static char *wtaper_state(wtaper_t *wtaper);
 static void flag_event_loop_done(int line);
+static void quit_chunker(chunker_t *chunker);
 
 typedef enum {
     TAPE_ACTION_NO_ACTION         = 0,
@@ -3741,6 +3742,13 @@ handle_dumper_result(
 	    /* either EOF or garbage from dumper.  Turn it off */
 	    log_add(L_WARNING, _("%s pid %ld is messed up, ignoring it.\n"),
 		    dumper->name, (long)dumper->pid);
+
+	    /* Remove read event */
+	    if (dumper->ev_read != NULL) {
+	      event_release(dumper->ev_read);
+	      dumper->ev_read = NULL;
+	    }
+
 	    aaclose(dumper->fd);
 	    dumper->busy = 0;
 	    dumper->down = 1;	/* mark it down so it isn't used again */
@@ -3912,32 +3920,20 @@ handle_chunker_result(
 	    fflush(stdout);
             amfree(qname);
 
-	    event_release(chunker->ev_read);
-	    chunker->ev_read = NULL;
-
 	    chunker->result = cmd;
-
-	    chunker_cmd(chunker, QUIT, NULL, NULL);
+	    quit_chunker(chunker);
 	    break;
 
 	case TRYAGAIN: /* TRY-AGAIN <handle> <errstr> */
-	    event_release(chunker->ev_read);
-	    chunker->ev_read = NULL;
-
 	    chunker->result = cmd;
-
-	    chunker_cmd(chunker, QUIT, NULL, NULL);
+	    quit_chunker(chunker);
 	    break;
 
 	case FAILED: /* FAILED <handle> <errstr> */
 	    /*free_serial(result_argv[1]);*/
 
-	    event_release(chunker->ev_read);
-	    chunker->ev_read = NULL;
-
 	    chunker->result = cmd;
-
-	    chunker_cmd(chunker, QUIT, NULL, NULL);
+	    quit_chunker(chunker);
 	    break;
 
 	case PORT: /* PORT <handle> <port> <dataport_list> */
@@ -4046,11 +4042,8 @@ handle_chunker_result(
 
 	    /*free_serial(result_argv[1]);*/
 
-	    event_release(chunker->ev_read);
-	    chunker->ev_read = NULL;
-
 	    chunker->result = cmd;
-	    chunker_cmd(chunker, QUIT, NULL, NULL);
+	    quit_chunker(chunker);
 
 	    break;
 
@@ -4084,10 +4077,8 @@ handle_chunker_result(
             }
             amfree(qname);
 
-	    event_release(chunker->ev_read);
-	    chunker->ev_read = NULL;
-
 	    chunker->result = cmd;
+	    quit_chunker(chunker);
 
 	    g_strfreev(result_argv);
 
@@ -5955,6 +5946,19 @@ no_taper_active(void)
 	}
     }
     return TRUE;
+}
+
+/*
+ * Ask the specified chunker to quit and release its EV_READFD event;
+ */
+static void
+quit_chunker(chunker_t *chunker)
+{
+  if (chunker->ev_read) {
+    event_release(chunker->ev_read);
+    chunker->ev_read = NULL;
+  }
+  chunker_cmd(chunker, QUIT, NULL, NULL);
 }
 
 static int
