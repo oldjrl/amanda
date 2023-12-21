@@ -726,11 +726,10 @@ SKIP: {
 	    "$msg_prefix: element produces the correct series of messages")
 	or diag(Dumper([@messages]));
 
-
+	my $cancelled = grep(/CANCELLED/, @messages);
 	if ($expected_crcs) {
-	    # we sort because the crc can come in different order
-	    @crcs = sort @crcs;
-	    @$expected_crcs = sort @$expected_crcs;
+	    # We may lose the last CRCs due to cancellation.
+	    $#{$expected_crcs} = $#crcs if $cancelled;
 	    is_deeply([@crcs],
 		$expected_crcs,
 		"$msg_prefix: element produces the correct crcs")
@@ -847,9 +846,10 @@ SKIP: {
 		"files read back and verified successfully with Amanda::Xfer::Recovery::Source")
 	    or diag(Dumper([@messages]));
 
+	    my $cancelled = grep(/CANCELLED/, @messages);
 	    if ($expected_crcs) {
-		#@crcs = sort @crcs;
-		#@$expected_crcs = sort @$expected_crcs;
+	        # We may lose the last CRCs due to cancellation.
+	        $#{$expected_crcs} = $#crcs if $cancelled;
 		is_deeply([@crcs],
 			$expected_crcs,
 			"element produces the correct crcs")

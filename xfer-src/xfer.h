@@ -116,7 +116,7 @@ Xfer *xfer_new(struct XferElement **elements, unsigned int nelements);
  *
  * @param xfer: the transfer
  */
-void xfer_ref(Xfer *xfer);
+void xfer_ref(Xfer *xfer, char *file, int line);
 
 /* Decrease the reference count of a transfer, possibly freeing it.  A running
  * transfer (state neither XFER_INIT nor XFER_DONE) will not be freed.
@@ -186,7 +186,7 @@ void xfer_set_offset_and_size(Xfer *xfer, gint64 offset, gint64 size);
  *
  * @param xfer: the Xfer object
  */
-void xfer_cancel(Xfer *xfer);
+void xfer_cancel(Xfer *xfer, char *filename, int line);
 
 /*
  * Utilities

@@ -25,7 +25,7 @@ use warnings;
 
 use lib '@amperldir@';
 use Installcheck::Config;
-use Amanda::Config qw( :init );
+use Amanda::Config qw( :init config_dir_relative);
 use Amanda::Changer;
 use Amanda::Device qw( :constants );
 use Amanda::Debug;
@@ -58,6 +58,14 @@ if ($cfg_result != $CFGERR_OK) {
 }
 
 my $taperoot = "$Installcheck::TMP/Amanda_Taper_Scribe";
+my $tapelist = config_dir_relative("tapelist");
+
+# set up the tapelist (we don't use Amanda::Tapelist to write this,
+# in case it's broken)
+open my $tlf, ">", $tapelist or die("Could not write tapelist");
+print $tlf "20231107084001 FAKELABEL reuse\n";
+close $tlf;
+my ($tl, $message) = Amanda::Tapelist->new($tapelist);
 
 sub reset_taperoot {
     my ($nslots) = @_;
@@ -119,6 +127,7 @@ sub new {
 	chg => $chg,
 	slots => [ @slots ],
 	next_or_current => "current",
+	tapelist => $tl,
     }, $class;
 }
 

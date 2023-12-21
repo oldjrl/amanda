@@ -253,7 +253,7 @@ xfer_status xfer_get_status(Xfer *xfer);
 char *xfer_repr(Xfer *xfer);
 void xfer_start(Xfer *xfer, gint64 offset, gint64 size);
 void xfer_set_offset_and_size(Xfer *xfer, gint64 offset, gint64 size);
-void xfer_cancel(Xfer *xfer);
+void xfer_cancel(Xfer *xfer, char *filename, int line);
 /* xfer_get_source is implemented below */
 
 %inline %{
@@ -323,6 +323,14 @@ sub xfer_set_callback {
     } else {
 	$xfer->get_source()->set_callback(undef);
     }
+}
+%}
+
+%perlcode %{
+sub xfer_debug_cancel {
+    my ($xfer) = @_;
+    my ($package, $filename, $line, $rest) = caller(1);
+    xfer_cancel($xfer, $filename, $line);
 }
 %}
 
@@ -453,9 +461,20 @@ XferElement *xfer_filter_process(
     gboolean need_root,
     gboolean must_drain,
     gboolean cancel_on_success,
-    gboolean ignore_broken_pipe);
+    gboolean ignore_broken_pipe,
+    char *filename,
+    int line
+);
 int filter_process_get_err_fd(
     XferElement *elt);
+
+%perlcode %{
+sub xfer_filter_process_new {
+    my ($argv, $need_root, $must_drain, $cancel_on_success, $ignore_broken_pipe) = @_;
+    my ($package, $filename, $line, $rest) = caller(1);
+    xfer_filter_process($argv, $need_root, $must_drain, $cancel_on_success, $ignore_broken_pipe, $filename, $line);
+}
+%}
 
 %newobject xfer_dest_null;
 XferElement *xfer_dest_null(
@@ -647,7 +666,7 @@ DECLARE_METHOD(get_source, Amanda::Xfer::xfer_get_amglue_source);
 DECLARE_METHOD(start, Amanda::Xfer::xfer_start_with_callback);
 DECLARE_METHOD(set_offset_and_size, Amanda::Xfer::xfer_set_offset_and_size);
 DECLARE_METHOD(set_callback, Amanda::Xfer::xfer_set_callback);
-DECLARE_METHOD(cancel, Amanda::Xfer::xfer_cancel);
+DECLARE_METHOD(cancel, Amanda::Xfer::xfer_debug_cancel);
 
 /* ---- */
 
@@ -728,7 +747,7 @@ DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_filter_crc)
 
 PACKAGE(Amanda::Xfer::Filter::Process)
 XFER_ELEMENT_SUBCLASS()
-DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_filter_process)
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_filter_process_new)
 DECLARE_METHOD(get_stderr_fd, Amanda::Xfer::filter_process_get_err_fd)
 
 /* ---- */

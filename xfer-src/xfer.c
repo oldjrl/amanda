@@ -84,9 +84,10 @@ xfer_new(
 
 void
 xfer_ref(
-    Xfer *xfer)
+	 Xfer *xfer, char *file, int line)
 {
     ++xfer->refcount;
+    g_debug("Xfer: ref %s rc %d %s, %d", xfer_repr(xfer), xfer->refcount, file, line);
 }
 
 void
@@ -98,6 +99,7 @@ xfer_unref(
 
     if (!xfer) return; /* be friendly to NULLs */
 
+    g_debug("Xfer: unref %s rc %d", xfer_repr(xfer), xfer->refcount);
     if (--xfer->refcount > 0) return;
 
     g_assert(xfer != NULL);
@@ -153,7 +155,7 @@ xfer_queue_message(
     g_assert(xfer != NULL);
     g_assert(msg != NULL);
 
-    g_debug("xfer_queue_message: MSG: %s", xmsg_repr(msg));
+    g_debug("xfer_queue_message: Xfer: %s MSG: %s", xfer_repr(xfer), xmsg_repr(msg));
     g_async_queue_push(xfer->queue, (gpointer)msg);
 
     /* TODO: don't do this if we're in the main thread */
@@ -202,7 +204,7 @@ xfer_start(
     /* set the status to XFER_START and add a reference to our count, so that
      * we are not freed while still in operation.  We'll drop this reference
      * when the status becomes XFER_DONE. */
-    xfer_ref(xfer);
+    xfer_ref(xfer, __FILE__, __LINE__);
     xfer->num_active_elements = 0;
     xfer_set_status(xfer, XFER_START);
 
@@ -285,11 +287,16 @@ xfer_set_offset_and_size(
 
 void
 xfer_cancel(
-    Xfer *xfer)
+    Xfer *xfer,
+    char *filename,
+    int line
+)
 {
     /* Since xfer_cancel can be called from any thread, we just send a message.
      * The action takes place when the message is received. */
     XferElement *src;
+    static char *modulename = "xfer_cancel";
+    g_debug("%s: %s:%d xfer %p, cancelled %x", modulename, filename, line, xfer, xfer->cancelled);
     if (xfer->cancelled > 0) return;
     xfer->cancelled++;
     src = g_ptr_array_index(xfer->elements, 0);
@@ -507,6 +514,7 @@ link_elements(
 
 	if (st.best[i].glue_idx != -1) {
 	    elt = xfer_element_glue();
+	    g_object_ref(elt);
 	    elt->xfer = xfer;
 	    elt->input_mech = xfer_element_glue_mech_pairs[st.best[i].glue_idx].input_mech;
 	    elt->output_mech = xfer_element_glue_mech_pairs[st.best[i].glue_idx].output_mech;
@@ -587,6 +595,8 @@ xmsgsource_dispatch(
     while (xfer
         && xfer->status != XFER_DONE
         && (msg = (XMsg *)g_async_queue_try_pop(xfer->queue))) {
+
+        g_debug("xmsgsource_dispatch: xfer: %s, msg %s", xfer_repr(xfer), xmsg_repr(msg));
 
 	/* We get first crack at interpreting messages, before calling the
 	 * designated callback. */
@@ -743,7 +753,7 @@ xfer_cancel_with_error(
     xfer_queue_message(elt->xfer, msg);
 
     /* cancel the transfer */
-    xfer_cancel(elt->xfer);
+    xfer_cancel(elt->xfer, __FILE__, __LINE__);
 }
 
 gint
