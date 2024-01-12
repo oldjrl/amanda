@@ -731,11 +731,11 @@ EXTRA_DIST += Amanda/Application/Zfs.pm
 ../genversion.h Amanda/Constants.pm.in: $(top_builddir)/config.status Amanda/Constants.pm.in.src
 	-rm -f ../common-src/genversion.h ../common-src/genversion.h.new
 	echo '#define CC "$(CC)"' > ../common-src/genversion.h.new
-	GENDATE=`date`; \
+	GENDATE=`date` GENMACH=`hostname`; \
 	echo '#define BUILT_DATE "'$$GENDATE'"' >> ../common-src/genversion.h.new; \
-	echo '#define BUILT_MACH "$(target)"' >> ../common-src/genversion.h.new; \
+	echo '#define BUILT_MACH "'$$GENMACH'"' >> ../common-src/genversion.h.new; \
 	mv ../common-src/genversion.h.new ../common-src/genversion.h; \
-	mkdir ../perl/Amanda; \
+	mkdir -p ../perl/Amanda; \
 	sed "s/^\$$BUILT_DATE.*$$/\$$BUILT_DATE = \"$$GENDATE\";/" $(srcdir)/Amanda/Constants.pm.in.src > Amanda/Constants.pm.in;
 
 # perl doesn't use the cyg prefix and it doesn't search in the bin
