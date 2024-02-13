@@ -116,4 +116,9 @@ gint64 internal_server_estimate(disk_t *dp, info_t *info,
 int server_can_do_estimate(disk_t *dp, info_t *info, int level,
 			   tapetype_t *tapetype);
 
+/* Does the specified storage match the specified disk and dump level? */
+gboolean dump_match_storage_disk_level(storage_t *storage, disk_t *disk, int level);
+/* Return the first storage that matches the specified disk and dump level */
+storage_t *dump_find_storage_disk_level(disk_t *disk, int level);
+
 #endif	/* SERVER_UTIL_H */

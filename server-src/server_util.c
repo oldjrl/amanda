@@ -793,3 +793,75 @@ server_can_do_estimate(
     return stats;
 }
 
+/* Does the specified storage match the specified disk and dump level? */
+gboolean
+dump_match_storage_disk_level(
+    storage_t *storage,
+    disk_t *disk,
+    int level)
+{
+    gboolean ok = FALSE;
+    dump_selection_list_t dsl = storage_get_dump_selection(storage);
+
+    /* No dump selection list is the same as TAG_ALL */
+    if (!dsl) {
+      return TRUE;
+    }
+
+    /* If there is a dump selection list, see if its criteria
+       (tag, level) match those of this disk.
+    */
+    for (; dsl != NULL ; dsl = dsl->next) {
+      dump_selection_t *ds = dsl->data;
+
+      if (ds->tag_type == TAG_ALL) {
+	ok = TRUE;
+      } else if (ds->tag_type == TAG_NAME) {
+	identlist_t tags;
+	/* No tags currently means, "use any named storage".
+	   This doesn't seem correct.
+	*/
+	if (!disk->tags) {
+	  ok = TRUE;
+	} else {
+	  for (tags = disk->tags; tags != NULL ; tags = tags->next) {
+	    if (g_str_equal(ds->tag, tags->data)) {
+	      ok = TRUE;
+	      break;
+	    }
+	  }
+	}
+      } else if (ds->tag_type == TAG_OTHER) {
+	// WHAT DO TO HERE
+      }
+      if (ok) {
+	if (ds->level == LEVEL_ALL) {
+	  return TRUE;
+	} else if (ds->level == LEVEL_FULL && level == 0) {
+	  return TRUE;
+	} else if (ds->level == LEVEL_INCR && level > 0) {
+	  return TRUE;
+	}
+      }
+    }
+    return FALSE;
+}
+
+/* Return the first storage that matches the specified disk and dump level */
+storage_t *
+dump_find_storage_disk_level(
+    disk_t *disk,
+    int level)
+{
+    storage_t *storage;
+
+    for (storage = get_first_storage(); storage != NULL;
+	 storage = get_next_storage(storage)) {
+      if (dump_match_storage_disk_level(storage, disk, level))
+	break;
+    }
+    /* We've either found a suitable storage for this disk and level,
+       or we haven't and storage is NULL.
+    */
+    return storage;
+}

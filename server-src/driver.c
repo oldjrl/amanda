@@ -79,10 +79,6 @@ static off_t total_disksize;
 static char *dumper_program;
 static char *chunker_program;
 static int  inparallel;
-static storage_t *storage;
-static int conf_max_dle_by_volume;
-static int conf_taperalgo;
-static int conf_taper_parallel_write;
 static int conf_runtapes;
 static char *conf_cmdfile;
 static unsigned long conf_reserve = 100;
@@ -240,7 +236,6 @@ main(
     find_result_t *holding_files;
     disklist_t holding_disklist = { NULL, NULL };
     int no_taper = FALSE;
-    char *storage_n;
     int sum_taper_parallel_write;
     char *argv0;
     find_result_t *output_find;
@@ -431,17 +426,13 @@ main(
     dumper_program = g_strjoin(NULL, amlibexecdir, "/", "dumper", NULL);
     chunker_program = g_strjoin(NULL, amlibexecdir, "/", "chunker", NULL);
 
+    conf_runtapes = 0;
     il = getconf_identlist(CNF_STORAGE);
-    if (il) {
-	storage_n = il->data;
-	storage = lookup_storage(storage_n);
-	conf_taperalgo = storage_get_taperalgo(storage);
-	conf_taper_parallel_write = storage_get_taper_parallel_write(storage);
-	conf_runtapes = storage_get_runtapes(storage);
-	conf_max_dle_by_volume = storage_get_max_dle_by_volume(storage);
-	if (conf_taper_parallel_write > conf_runtapes) {
-	    conf_taper_parallel_write = conf_runtapes;
-	}
+    while (il) {
+	char *storage_n = il->data;
+	storage_t *storage = lookup_storage(storage_n);
+	conf_runtapes += storage_get_runtapes(storage);
+	il = il->next;
     }
 
     /* set up any configuration-dependent variables */
@@ -613,9 +604,8 @@ main(
 
     g_printf(_("driver: start time %s inparallel %d bandwidth %lu diskspace %lld "), walltime_str(curclock()), inparallel,
 	   network_free_kps(NULL), (long long)holding_free_space());
-    g_printf(_(" dir %s datestamp %s driver: drain-ends tapeq %s big-dumpers %s\n"),
-	   "OBSOLETE", driver_timestamp, taperalgo2str(conf_taperalgo),
-	   getconf_str(CNF_DUMPORDER));
+    g_printf(_(" dir %s datestamp %s driver: drain-ends big-dumpers %s\n"),
+	   "OBSOLETE", driver_timestamp, getconf_str(CNF_DUMPORDER));
     fflush(stdout);
 
     schedule_done = no_dump;
@@ -1179,7 +1169,15 @@ start_a_flush_wtaper(
 	(result_tape_action & TAPE_ACTION_START_A_FLUSH ||
 	 result_tape_action & TAPE_ACTION_START_A_FLUSH_FIT)) {
 
-	int taperalgo = conf_taperalgo;
+	taperalgo_t taperalgo = ALGO_FIRST;
+        storage_t *storage = lookup_storage(taper->storage_name);
+	if (storage) {
+	  taperalgo = storage_get_taperalgo(storage);
+	} else {
+	  log_add(L_WARNING, 
+		  _("driver: start_a_flush_wtaper: no storage(!), using %s"),
+		  taperalgo2str(taperalgo));
+	}
 	if (result_tape_action & TAPE_ACTION_START_A_FLUSH_FIT) {
 	    if (taperalgo == ALGO_FIRST)
 		taperalgo = ALGO_FIRSTFIT;
@@ -1309,7 +1307,7 @@ start_a_flush_wtaper(
 	}
 	if (!sp) {
 	    if (!(result_tape_action & TAPE_ACTION_START_A_FLUSH_FIT)) {
-		if (conf_taperalgo != ALGO_SMALLEST)  {
+		if (taperalgo != ALGO_SMALLEST)  {
 		    g_fprintf(stderr,
 			_("driver: startaflush: Using SMALLEST because nothing fit\n"));
 		}
@@ -1494,7 +1492,15 @@ start_a_vault_wtaper(
 	(result_tape_action & TAPE_ACTION_START_A_FLUSH ||
 	 result_tape_action & TAPE_ACTION_START_A_FLUSH_FIT)) {
 
-	int taperalgo = conf_taperalgo;
+	taperalgo_t taperalgo = ALGO_FIRST;
+        storage_t *storage = lookup_storage(taper->storage_name);
+	if (storage) {
+	  taperalgo = storage_get_taperalgo(storage);
+	} else {
+	  log_add(L_WARNING, 
+		    _("driver: start_a_vault_wtaper: no storage(!), using %s"),
+		      taperalgo2str(taperalgo));
+	}
 	if (result_tape_action & TAPE_ACTION_START_A_FLUSH_FIT) {
 	    if (taperalgo == ALGO_FIRST)
 		taperalgo = ALGO_FIRSTFIT;
@@ -3578,47 +3584,9 @@ dump_match_selection(
     char    *storage_n,
     sched_t *sp)
 {
-    storage_t *st = lookup_storage(storage_n);
-    dump_selection_list_t dsl;
-
-    dsl = storage_get_dump_selection(st);
-    if (!dsl)
-	return TRUE;
-
-    for (; dsl != NULL ; dsl = dsl->next) {
-	dump_selection_t *ds = dsl->data;
-	gboolean ok = FALSE;
-
-	if (ds->tag_type == TAG_ALL) {
-	    ok = TRUE;
-	} else if (ds->tag_type == TAG_NAME) {
-	    identlist_t tags;
-	    if (!sp->disk->tags) {
-		ok = TRUE;
-	    } else {
-		for (tags = sp->disk->tags; tags != NULL ; tags = tags->next) {
-		    if (g_str_equal(ds->tag, tags->data)) {
-			ok = TRUE;
-			break;
-		    }
-		}
-	    }
-	} else if (ds->tag_type == TAG_OTHER) {
-	    // WHAT DO TO HERE
-	}
-
-	if (ok) {
-	    if (ds->level == LEVEL_ALL) {
-		return TRUE;
-	    } else if (ds->level == LEVEL_FULL && sp->level == 0) {
-		return TRUE;
-	    } else if (ds->level == LEVEL_INCR && sp->level > 0) {
-		return TRUE;
-	    }
-	}
-    }
-
-    return FALSE;
+    return dump_match_storage_disk_level(lookup_storage(storage_n),
+					 sp->disk,
+					 sp->level);
 }
 
 static void
