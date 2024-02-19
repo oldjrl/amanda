@@ -151,9 +151,9 @@ GList *g_am_list_insert_after(GList *list, GList *sibling, gpointer data);
 #define G_VALUE_SET_CHAR g_value_set_schar
 #define G_THREAD_SUPPORTED 1
 /* Helper functions to replace deprecated versions. */
-GMutex *g_mutex_alloc();
+GMutex *g_mutex_alloc(void);
 void g_mutex_unalloc(GMutex *);
-GCond *g_cond_alloc();
+GCond *g_cond_alloc(void);
 void g_cond_unalloc(GCond *);
 #else
 #define G_STATIC_MUTEX_LOCK g_static_mutex_lock
