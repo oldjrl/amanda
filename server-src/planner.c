@@ -3148,16 +3148,16 @@ static void delay_dumps(void)
     }
 
     /* 2.a. Do not delay forced full */
-    delayed_ep = NULL;
-    delayed_dp = NULL;
-    do {
-      for (si = 1; si <= nb_storage; si += 1) {
-	tape_properties_t *fstp =  &storage_tape_properties[si];
+    for (si = 1; si <= nb_storage; si += 1) {
+      tape_properties_t *fstp =  &storage_tape_properties[si];
+
+      do {
+
+	delayed_ep = NULL;
+	delayed_dp = NULL;
 
 	if (fstp->does_full && fstp->total_tape_size > fstp->max_tape_size) {
 
-	  delayed_ep = NULL;
-	  delayed_dp = NULL;
 	  timestamps = 0;
 	  for (elist = schedq.tail;
 	       elist != NULL && fstp->total_tape_size > fstp->max_tape_size;
@@ -3211,8 +3211,8 @@ static void delay_dumps(void)
 			   message, NULL);
 	  }
 	}
-      }
-    } while (delayed_ep);
+      } while (delayed_ep);
+    }
 
     /* 2.b. Delay full dumps if needed (even if forced) */
     /* Find the storage for full dumps. */
