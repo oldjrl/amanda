@@ -155,8 +155,10 @@ typedef struct tape_properties {
 static guint nb_storage;
 tape_properties_t *storage_tape_properties;
 
+static int set_holding_storage(tape_properties_t *stp);
 static int set_tape_property_index(one_est_t *oep, int i);
 static int get_tape_property_index(one_est_t *oep);
+static tape_properties_t * get_tape_properties(one_est_t *oep);
 
 int runs_per_cycle = 0;
 time_t today;
@@ -207,8 +209,7 @@ static void delay_dumps(void);
 static int promote_highest_priority_incremental(tape_properties_t *stp, double balance_threshold);
 static int promote_hills(void);
 static void output_scheduleline(est_t *est);
-static void server_estimate(est_t *est, int i, info_t *info, int level,
-			    tapetype_t *tapetype);
+static void server_estimate(est_t *est, int i, info_t *info, int level);
 static void cmdfile_flush(gpointer key G_GNUC_UNUSED, gpointer value,
 			  gpointer user_data);
 
@@ -221,6 +222,7 @@ static void est_dump_queue(char      *st,
 			   estlist_t  q,
 			   int        npr,
 			   FILE      *f);
+static void assign_storage_for_est(est_t *ep);
 
 volatile int debugwait = 0;
 
@@ -429,8 +431,14 @@ main(
       nb_storage += 1;
       il = il->next;
     }
-    storage_tape_properties = g_malloc0(nb_storage * sizeof(storage_tape_properties[0]));
+    /* Allocate room for nb_storage + 1 storage property caches.
+       The "+ 1" is for non-storage - where we can point objects that
+       don't have associated storage. */
+    storage_tape_properties = g_malloc0((nb_storage + 1) * sizeof(storage_tape_properties[0]));
     stp = storage_tape_properties;
+    /* Set up non-storage cache (degraded mode - dump to holding disk only) */
+    set_holding_storage(stp);
+    stp += 1;
     il = getconf_identlist(CNF_STORAGE);
     while (il) {
         char *storage_name = il->data;
@@ -574,7 +582,7 @@ main(
 	    g_fprintf(stderr, "planner: tape_length is set from maxdumpsize (%jd KB)\n",
 			(intmax_t)conf_maxdumpsize);
 	}
-	for (i = 0; i < nb_storage; i += 1) {
+	for (i = 1; i <= nb_storage; i += 1) {
 	  stp = &storage_tape_properties[i];
 	  if (stp->tape) {
 	    if(conf_maxdumpsize > (gint64)0) {
@@ -822,7 +830,7 @@ main(
 
 	for (elist = schedq.head; elist != NULL; elist = elist->next) {
 	  est_t  *est = get_est(elist);
-	  tape_properties_t *stp = &storage_tape_properties[get_tape_property_index(est->dump_est)];
+	  tape_properties_t *stp = get_tape_properties(est->dump_est);
 
 	  total_size += stp->total_tape_size;
 	  tape_length += stp->max_tape_size;
@@ -865,6 +873,17 @@ main(
 
     delay_dumps();
 
+    {
+	GList  *elist;
+	total_size = 0;
+	for (elist = schedq.head; elist != NULL; elist = elist->next) {
+	  est_t  *est = get_est(elist);
+	  tape_properties_t *stp = get_tape_properties(est->dump_est);
+
+	  total_size += stp->total_tape_size;
+	}
+    }
+
     /* XXX - why bother checking this? */
     if(empty(schedq) && total_size < initial_size) {
 	error(_("cannot fit anything on tape, bailing out"));
@@ -900,7 +919,7 @@ main(
       gboolean done_full = FALSE;
 
       g_fprintf(stderr, _("\nPROMOTING DUMPS IF NEEDED:"));
-      for (i = 0; i < nb_storage; i += 1) {
+      for (i = 1; i <= nb_storage; i += 1) {
 	stp = &storage_tape_properties[i];
 	if (stp->does_full) {
 	  doing_full = TRUE;
@@ -1041,34 +1060,31 @@ static void askfor(
 static void assign_storage_for_est(est_t *ep)
 {
     disk_t *dp = ep->disk;
-    int i;
+    int i, e;
+    int index = 0;
 
-    /* Do we have an storage for this estimate? */
-    if (get_tape_property_index(&ep->estimate[0]) == -1) {
-      tape_properties_t *stp = &storage_tape_properties[0];
-      /* Does this storage match a full dump of this disk? */
-      if (dump_match_storage_disk_level(stp->storage, dp, 0)) {
-	set_tape_property_index(&ep->estimate[0], 0);
-      }
-    }
+    /* Do we have an storage for these estimates? */
+    for (e = 0; e < sizeof(ep->estimate)/sizeof(ep->estimate[0]); e += 1) {
+      int level = ep->estimate[e].level;
 
-    /* Have we already assigned storage for these estimates? */
-    if (get_tape_property_index(&ep->estimate[1]) == -1) {
-      /* No. Find the appropriate storage */
-      for (i = 1; i < nb_storage; i += 1) {
-	tape_properties_t *stp = &storage_tape_properties[i];
-
-	if (stp->storage) {
-	  if (get_tape_property_index(&ep->estimate[1]) == -1) {
-	    /* Does this storage match an incrementak dump of this disk? */
-	    if (dump_match_storage_disk_level(stp->storage, dp, 1)) {
-	      int j;
-	      for (j = 1; j < MAX_LEVELS; j += 1) {
-		set_tape_property_index(&ep->estimate[j], i);
+      /* Is this a real estimate? */
+      if (level >= 0) {
+	if (get_tape_property_index(&ep->estimate[e]) == -1) {
+	  index = 0;
+	  for (i = 1; i <= nb_storage; i += 1) {
+	    tape_properties_t *stp = &storage_tape_properties[i];
+	    if (stp->storage) {
+	      /* Does this storage match the dump level of this disk? */
+	      if (dump_match_storage_disk_level(stp->storage, dp, level)) {
+		index = i;
+		break;
 	      }
 	    }
-	    break;
 	  }
+	  /* If we didn't find storage for this estimate,
+	      index will be 0 - our non-storage entry.
+	  */
+	  set_tape_property_index(&ep->estimate[e], index);
 	}
       }
     }
@@ -1467,11 +1483,6 @@ setup_estimate(
     while(i < MAX_LEVELS)	/* mark end of estimates */
 	askfor(ep, i++, -1, info);
 
-    /* Go through the list and assign, temporaroly (as best we can)
-       the storage which would be used for each estimate.
-     */
-    assign_storage_for_est(ep);
-
     /* debug output */
 
     g_fprintf(stderr, _("setup_estimate: %s:%s: command %u, options: %s    "
@@ -1854,13 +1865,11 @@ static char *client_estimate_as_xml(est_t *ep, am_feature_t *features,
 
     for (i = 0; i < nr_estimates; i++) {
         int level = ep->estimate[i].level;
-	tape_properties_t *tp = &storage_tape_properties[get_tape_property_index(&ep->estimate[i])];
-	tapetype_t *tape = tp->tape;
 
         tmpbuf = g_string_new("  <level>");
         g_string_append_printf(tmpbuf, "%d", level);
 
-        if (server_side_xml && server_can_do_estimate(dp, &info, level, tape))
+        if (server_side_xml && server_can_do_estimate(dp, &info, level))
             g_string_append(tmpbuf, "<server>YES</server>");
 
         g_string_append(tmpbuf, "</level>");
@@ -2086,9 +2095,6 @@ static void getsize(am_host_t *hostp)
             continue;
         }
 
-	/* Ensure we have storage assigned for this set of estimates. */
-	assign_storage_for_est(ep);
-
         estimate = ES_CLIENT;
         for (el = dp->estimatelist; el != NULL; el = el->next) {
             estimate = (estimate_t)GPOINTER_TO_INT(el->data);
@@ -2105,11 +2111,9 @@ static void getsize(am_host_t *hostp)
 
             for(i = 0; i < MAX_LEVELS; i++) {
                 int lev = ep->estimate[i].level;
-		tape_properties_t *tp = &storage_tape_properties[get_tape_property_index(&ep->estimate[i])];
-		tapetype_t *tape = tp->tape;
 
                 if(lev == -1) break;
-                server_estimate(ep, i, &info, lev, tape);
+                server_estimate(ep, i, &info, lev);
             }
 
             g_fprintf(stderr,_("%s time %s: got result for host %s disk %s:"),
@@ -2793,13 +2797,16 @@ static void analyze_estimate(
 	amfree(q);
     }
 
+    /* Sssign (as best we can) the storage which would be used for each estimate. */
+    assign_storage_for_est(ep);
+
     g_fprintf(stderr,_("  curr level %d nsize %lld csize %lld "),
               ep->dump_est->level, (long long)ep->dump_est->nsize,
               (long long)ep->dump_est->csize);
 
     insert_est(&schedq, ep, schedule_order);
 
-    stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)];
+    stp = get_tape_properties(ep->dump_est);
     stp->total_tape_size += (gint64)stp->tt_blocksize_kb + ep->dump_est->csize + stp->tape_mark;
     /* If this is a level 0 dump, update our level0 count for this storage. */
     if (ep->dump_est->level == 0) {
@@ -3016,6 +3023,7 @@ static void delay_dumps(void)
     time_t      timestamps;
     int         priority;
     tape_properties_t *stp;
+    int si;
 
     biq.head = biq.tail = NULL;
 
@@ -3038,7 +3046,9 @@ static void delay_dumps(void)
 	dp = ep->disk;
 
 	/* Get "full" dump storage parameters. */
-	stp = &storage_tape_properties[get_tape_property_index(&ep->estimate[0])];
+	if (ep->estimate[0].level != 0)
+	  continue;
+	stp = get_tape_properties(&ep->estimate[0]);
 
 	if (dp->tape_splitsize > (gint64)0 || dp->allow_split)
 	    avail_tapes = stp->runtapes;
@@ -3061,7 +3071,7 @@ static void delay_dumps(void)
 	}
 
 	/* Get "current" dump storage parameters. */
-	stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)];
+	stp = get_tape_properties(ep->dump_est);
 
 	if (ep->dump_est->csize == (gint64)-1 ||
 	    ep->dump_est->csize <= stp->max_tape_size) {
@@ -3141,104 +3151,117 @@ static void delay_dumps(void)
     delayed_ep = NULL;
     delayed_dp = NULL;
     do {
-	delayed_ep = NULL;
-	delayed_dp = NULL;
-	timestamps = 0;
-	for (elist = schedq.tail;
-	     elist != NULL;
-	     elist = elist_prev) {
+      for (si = 1; si <= nb_storage; si += 1) {
+	tape_properties_t *fstp =  &storage_tape_properties[si];
+
+	if (fstp->does_full && fstp->total_tape_size > fstp->max_tape_size) {
+
+	  delayed_ep = NULL;
+	  delayed_dp = NULL;
+	  timestamps = 0;
+	  for (elist = schedq.tail;
+	       elist != NULL && fstp->total_tape_size > fstp->max_tape_size;
+	       elist = elist_prev) {
 	    ep = get_est(elist);
 	    dp = ep->disk;
-	    stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)];
-	    if (stp->total_tape_size > stp->max_tape_size)
-	      break;
-
 	    elist_prev = elist->prev;
+
+	    /* Is this on a maxxed out storage? */
+	    if (ep->dump_est->tape_property_index != si)
+	      continue;
 
 	    if(ep->dump_est->level != 0) continue;
 
 	    get_info(dp->host->hostname, dp->name, &info);
 	    if(ISSET(info.command, FORCE_FULL)) {
-		nb_forced_level_0 += 1;
-		preserve_ep = ep;
-		continue;
+	      nb_forced_level_0 += 1;
+	      preserve_ep = ep;
+	      continue;
 	    }
 
 	    if (ep != preserve_ep &&
 		ep->info->inf[0].date > timestamps) {
-		delayed_ep = ep;
-		delayed_dp = dp;
-		timestamps = ep->info->inf[0].date;
+	      delayed_ep = ep;
+	      delayed_dp = dp;
+	      timestamps = ep->info->inf[0].date;
 	    }
-	}
-	if (delayed_ep) {
+	  }
+	  if (delayed_ep) {
 	    /* Format dumpsize for messages */
 	    g_snprintf(est_kb, 20, "%lld KB,",
                        (long long)delayed_ep->dump_est->csize);
 
 	    if(delayed_dp->skip_incr) {
-		delete = 1;
-		message = _("but cannot incremental dump skip-incr disk");
+	      delete = 1;
+	      message = _("but cannot incremental dump skip-incr disk");
 	    }
 	    else if(delayed_ep->last_level < 0) {
-		delete = 1;
-		message = _("but cannot incremental dump new disk");
+	      delete = 1;
+	      message = _("but cannot incremental dump new disk");
 	    }
 	    else if(delayed_ep->degr_est->level < 0) {
-		delete = 1;
-		message = _("but no incremental estimate");
+	      delete = 1;
+	      message = _("but no incremental estimate");
 	    }
 	    else {
-		delete = 0;
-		message = _("full dump delayed, doing incremental");
+	      delete = 0;
+	      message = _("full dump delayed, doing incremental");
 	    }
 	    delay_one_dump(delayed_ep, delete, _("dumps too big,"), est_kb,
 			   message, NULL);
+	  }
 	}
+      }
     } while (delayed_ep);
 
-    /* 2.b. Delay forced full if needed */
-    if(nb_forced_level_0 > 0) {
+    /* 2.b. Delay full dumps if needed (even if forced) */
+    /* Find the storage for full dumps. */
+    for (si = 1; si <= nb_storage; si += 1) {
+      tape_properties_t *fstp =  &storage_tape_properties[si];
+
+      if (fstp->does_full && fstp->total_tape_size > fstp->max_tape_size) {
 	for (elist = schedq.tail;
-	     elist != NULL;
+	     elist != NULL && fstp->total_tape_size > fstp->max_tape_size;
 	     elist = elist_prev) {
-	    ep = get_est(elist);
-	    dp = ep->disk;
-	    stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)];
-	    if (stp->total_tape_size > stp->max_tape_size)
+	  ep = get_est(elist);
+	  dp = ep->disk;
+	  elist_prev = elist->prev;
+
+	  /* Is this on a maxxed out storage? */
+	  if (ep->dump_est->tape_property_index != si)
+	    continue;
+
+	  if(ep->dump_est->level == 0 && ep != preserve_ep) {
+	    tape_properties_t *stp = get_tape_properties(ep->dump_est); 
+
+	    if (stp->total_tape_size <= stp->max_tape_size) {
 	      break;
-	    elist_prev = elist->prev;
-
-	    if(ep->dump_est->level == 0 && ep != preserve_ep) {
-	      tape_properties_t *stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)]; 
-
-	      if (stp->total_tape_size <= stp->max_tape_size) {
-		break;
-	      }
-		/* Format dumpsize for messages */
-		g_snprintf(est_kb, 20, "%lld KB,",
-                           (long long)ep->dump_est->csize);
-
-		if(dp->skip_incr) {
-		    delete = 1;
-		    message = _("but cannot incremental dump skip-incr disk");
-		}
-		else if(ep->last_level < 0) {
-		    delete = 1;
-		    message = _("but cannot incremental dump new disk");
-		}
-		else if(ep->degr_est->level < 0) {
-		    delete = 1;
-		    message = _("but no incremental estimate");
-		}
-		else {
-		    delete = 0;
-		    message = _("full dump delayed");
-		}
-		delay_one_dump(ep, delete, _("dumps too big,"), est_kb,
-			       message, NULL);
 	    }
+	    /* Format dumpsize for messages */
+	    g_snprintf(est_kb, 20, "%lld KB,",
+		       (long long)ep->dump_est->csize);
+
+	    if(dp->skip_incr) {
+	      delete = 1;
+	      message = _("but cannot incremental dump skip-incr disk");
+	    }
+	    else if(ep->last_level < 0) {
+	      delete = 1;
+	      message = _("but cannot incremental dump new disk");
+	    }
+	    else if(ep->degr_est->level < 0) {
+	      delete = 1;
+	      message = _("but no incremental estimate");
+	    }
+	    else {
+	      delete = 0;
+	      message = _("full dump delayed");
+	    }
+	    delay_one_dump(ep, delete, _("dumps too big,"), est_kb,
+			   message, NULL);
+	  }
 	}
+      }
     }
 
     /*
@@ -3248,18 +3271,22 @@ static void delay_dumps(void)
     ** at making things fit.  Again, we start with the lowest priority (most
     ** dispensable) and work forwards.
     */
+    for (si = 1; si <= nb_storage; si += 1) {
+      tape_properties_t *fstp =  &storage_tape_properties[si];
 
-    for (elist = schedq.tail;
-	 elist != NULL;
+      if (fstp->does_incr && fstp->total_tape_size > fstp->max_tape_size) {
+
+	for (elist = schedq.tail;
+	     elist != NULL && fstp->total_tape_size > fstp->max_tape_size;
 	 elist = elist_prev) {
-	elist_prev = elist->prev;
-	ep = get_est(elist);
-	dp = ep->disk;
-	stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)];
-	if (stp->total_tape_size > stp->max_tape_size)
-	  break;
+	  elist_prev = elist->prev;
+	  ep = get_est(elist);
+	  dp = ep->disk;
+	  /* Is this on a maxxed out storage? */
+	  if (ep->dump_est->tape_property_index != si)
+	    continue;
 
-	if(ep->dump_est->level != 0) {
+	  if(ep->dump_est->level != 0) {
 
 	    /* Format dumpsize for messages */
 	    g_snprintf(est_kb, 20, "%lld KB,",
@@ -3270,7 +3297,9 @@ static void delay_dumps(void)
 			   est_kb,
 			   _("must skip incremental dumps"),
 			   NULL);
+	  }
 	}
+      }
     }
 
     /*
@@ -3290,7 +3319,7 @@ static void delay_dumps(void)
 	dp = ep->disk;
 
 	/* Get "current" dump storage parameters. */
-	stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)];
+	stp = get_tape_properties(ep->dump_est);
 
 	if(dp->tape_splitsize > (gint64)0 || dp->allow_split)
 	    avail_tapes = stp->runtapes;
@@ -3375,7 +3404,7 @@ static void delay_one_dump(est_t *ep, int delete, ...)
     char *tmp, *qtmp;
     one_est_t *estimate = ep->dump_est;
     disk_t *dp = ep->disk;
-    tape_properties_t *stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)];
+    tape_properties_t *stp = get_tape_properties(ep->dump_est);
 	
     arglist_start(argp, delete);
 
@@ -3427,7 +3456,7 @@ static void delay_one_dump(est_t *ep, int delete, ...)
 	remove_est(&schedq, ep);
     } else {
 	ep->dump_est = ep->degr_est;
-	stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)];
+	stp = get_tape_properties(ep->dump_est);
 	stp->total_tape_size += stp->tt_blocksize_kb + ep->dump_est->csize + stp->tape_mark;
     }
     return;
@@ -3647,8 +3676,8 @@ static int promote_hills(void)
 	    if (level0_est->nsize <= (gint64)0)
 		continue;
 
-	    stp = &storage_tape_properties[get_tape_property_index(ep->dump_est)];
-	    lev0stp = &storage_tape_properties[get_tape_property_index(level0_est)];
+	    stp = get_tape_properties(ep->dump_est);
+	    lev0stp = get_tape_properties(level0_est);
 
 	    new_total = lev0stp->total_tape_size + level0_est->csize;
 	    if(new_total > lev0stp->max_tape_size)
@@ -3815,14 +3844,13 @@ server_estimate(
     est_t  *ep,
     int     i,
     info_t *info,
-    int     level,
-    tapetype_t *tapetype)
+    int     level)
 {
     int    stats;
     gint64 size;
     disk_t *dp = ep->disk;
 
-    size = internal_server_estimate(dp, info, level, &stats, tapetype);
+    size = internal_server_estimate(dp, info, level, &stats);
 
     ep->dump_est = &ep->estimate[i];
     ep->estimate[i].nsize = size;
@@ -4046,11 +4074,25 @@ remove_est(
 }
 
 static int
+set_holding_storage(tape_properties_t *stp)
+{
+  intmax_t max_tape_size;
+
+  stp->runtapes = 1;
+  stp->does_incr = TRUE;
+  max_tape_size = degraded_disk_available_size();
+  stp->max_tape_size = max_tape_size;
+  /* Verify we didn't lose any bits in the conversion. */
+  g_assert(stp->max_tape_size == max_tape_size);
+  return 1;
+}
+
+static int
 set_tape_property_index(one_est_t *oep, int i)
 {
   int old_index = oep->tape_property_index;
   
-  if (i < 0 || i > DEGR_EST) {
+  if (i < 0 || i > nb_storage) {
     g_fprintf(stderr, _("set_tape_property_index: index %d out of range\n"), i);
   } else {
     oep->tape_property_index = i;
@@ -4063,10 +4105,20 @@ get_tape_property_index(one_est_t *oep)
 {
   int old_index = oep->tape_property_index;
   
-  if (old_index < -1 || old_index > DEGR_EST) {
+  if (old_index != -1 && old_index > nb_storage) {
     g_fprintf(stderr, _("get_tape_property_index: index %d out of range\n"),
 	      old_index);
   }
   return old_index;
 }
 
+static tape_properties_t *
+get_tape_properties(one_est_t *oep)
+{
+  int index = get_tape_property_index(oep);
+  tape_properties_t *stp  = NULL;
+
+  g_assert(index >= 0 && index <= nb_storage);
+  stp = &storage_tape_properties[index];
+  return stp;
+}
