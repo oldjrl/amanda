@@ -152,7 +152,7 @@ typedef struct tape_properties {
 } tape_properties_t;
 
 /* We keep track of tape properties for each storage object. */
-static guint nb_storage;
+static int nb_storage;
 tape_properties_t *storage_tape_properties;
 
 static int set_holding_storage(tape_properties_t *stp);
@@ -238,7 +238,6 @@ main(
     disk_t *dp;
     int moved_one;
     int diskarg_offset;
-    gint64 initial_size;
     char *conf_diskfile;
     char *conf_tapelist;
     char *conf_cmdfile;
@@ -247,7 +246,7 @@ main(
     char *qname;
     char  *errstr = NULL;
     GPtrArray *err_array;
-    guint i;
+    int i;
     config_overrides_t *cfg_ovr = NULL;
     char *cfg_opt = NULL;
     int exit_status = EXIT_SUCCESS;
@@ -260,8 +259,6 @@ main(
     identlist_t il;
     cmddatas_t *cmddatas;
     tape_properties_t *stp;
-    gint64 total_size = 0;	/* This is of minimal use with the advent of multiple storage(s). */
-    gint64 tape_length = 0;	/* This is of minimal use with the advent of multiple storage(s). */
     
     if (argc > 1 && argv && argv[1] && g_str_equal(argv[1], "--version")) {
 	printf("planner-%s\n", VERSION);
@@ -512,7 +509,7 @@ main(
     err_array = match_disklist(&origq, exact_match, argc-diskarg_offset,
 				    argv+diskarg_offset);
     if (err_array->len > 0) {
-	for (i = 0; i < err_array->len; i++) {
+      for (i = 0; i < (int) err_array->len; i++) {
 	    char *errstr = g_ptr_array_index(err_array, i);
 	    g_fprintf(stderr, "%s\n", errstr);
 	    g_debug("%s", errstr);
@@ -1067,8 +1064,8 @@ static void assign_storage_for_est(est_t *ep)
     int i, e;
     int index = 0;
 
-    /* Do we have an storage for these estimates? */
-    for (e = 0; e < sizeof(ep->estimate)/sizeof(ep->estimate[0]); e += 1) {
+    /* Do we have storage for these estimates? */
+    for (e = 0; e < (int)(sizeof(ep->estimate)/sizeof(ep->estimate[0])); e += 1) {
       int level = ep->estimate[e].level;
 
       /* Is this a real estimate? */
