@@ -2304,6 +2304,77 @@ static gboolean is_all_work_done(int line)
 }
 
 static void
+handle_taper_error(
+	wtaper_t *wtaper)
+{
+    job_t *job = wtaper->job;
+    sched_t  *sp     = job->sched;
+    taper_t  *taper  = wtaper->taper;
+    disk_t   *dp = sp->disk;
+    char    *qname = quote_string(sp->disk->name);
+    gboolean fail_taper = FALSE;
+    gboolean fail_sched = FALSE;
+    
+    if (wtaper->input_error) {
+	g_printf("driver: taper failed %s %s: %s\n",
+		   dp->host->hostname, qname, wtaper->input_error);
+	if (g_str_equal(sp->datestamp, driver_timestamp)) {
+	    if (sp->taper_attempted >= dp->retry_dump) {
+		g_printf("driver: taper failed %s %s, too many taper retry after holding disk error\n",
+		   dp->host->hostname, qname);
+		fail_sched = TRUE;
+	    } else {
+		log_add(L_INFO, _("%s %s %s %d [Will retry dump because of holding disk error: %s]"),
+			dp->host->hostname, qname, sp->datestamp,
+			sp->level, wtaper->input_error);
+		g_printf("driver: taper will retry %s %s because of holding disk error\n",
+			dp->host->hostname, qname);
+		if (dp->to_holdingdisk != HOLD_REQUIRED) {
+		    dp->to_holdingdisk = HOLD_NEVER;
+		    sp->dump_attempted -= 1;
+		    sp->taper_attempted += 1;
+		    sp->action = ACTION_DUMP_TO_TAPE;
+		    headqueue_sched(&directq, sp);
+		} else {
+		  fail_sched = TRUE;
+		}
+	    }
+	} else {
+	  fail_sched = TRUE;
+	}
+    } else if (wtaper->tape_error) {
+	g_printf("driver: taper failed %s %s with tape error: %s\n",
+		   dp->host->hostname, qname, wtaper->tape_error);
+	/* Is this a NO_NEW_TAPE error? */
+	if (wtaper->state & TAPER_STATE_TAPE_REQUESTED &&
+	    taper->current_tape >= taper->runtapes) {
+	  fail_taper = TRUE;
+	} else if (sp->taper_attempted >= dp->retry_dump) {
+	    g_printf("driver: taper failed %s %s, too many taper retry\n",
+		   dp->host->hostname, qname);
+	    fail_sched = TRUE;
+	} else {
+	    char *wall_time = walltime_str(curclock());
+	    g_printf("driver: taper will retry %s %s\n",
+		   dp->host->hostname, qname);
+	    /* Re-insert into taper queue. */
+	    sp->action = ACTION_FLUSH;
+	    sp->taper_attempted += 1;
+	    g_printf("driver: requeue write time %s %s %s %s %s\n", wall_time, sp->disk->host->hostname, qname, sp->datestamp, wtaper->taper->storage_name);
+	    headqueue_sched(&wtaper->taper->tapeq, sp);
+	}
+    }
+    /* Should we fail this schedule */
+    if (fail_sched) {
+      free_sched(sp);
+    }
+    /* Are we giving up on this taper? */
+    if (fail_taper) {
+      g_list_free_full(&taper->tapeq, free_sched);
+    }
+}
+
+static void
 handle_taper_result(
 	void *cookie)
 {
@@ -2902,6 +2973,11 @@ handle_taper_result(
 	}
 
 	g_strfreev(result_argv);
+
+	/* Handle any tape errors here. */
+	if (wtaper && (wtaper->input_error || wtaper->tape_error)) {
+	  handle_taper_error(wtaper);
+	}
 
 	if (wtaper && job && job->sched && wtaper->result != LAST_TOK) {
 	    if (wtaper->nb_dle >= taper->max_dle_by_volume) {
