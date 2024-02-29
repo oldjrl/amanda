@@ -855,15 +855,17 @@ dump_find_storage_disk_level(
     return storage;
 }
 
-/* Return the amount of space available on the holding disk for degraded dumps. */
+/* Return the amount of space available on the
+ *  holding disk for degraded dumps in KB.
+ */
 intmax_t
-degraded_disk_available_size(void)
+degraded_disk_available_KB(void)
 {
     unsigned long conf_reserve = (unsigned long)getconf_int(CNF_RESERVE);
     intmax_t total_disksize = 0;
     struct fs_usage fsusage;
     identlist_t    il;
-    intmax_t avail;
+    intmax_t availKB;
     intmax_t reserved_space;
 
     for (il = getconf_identlist(CNF_HOLDINGDISK);
@@ -878,12 +880,12 @@ degraded_disk_available_size(void)
 	}
 
 	if (fsusage.fsu_bavail_top_bit_set)
-	    avail = 0;
+	    availKB = 0;
 	else
-	    avail = fsusage.fsu_bavail * fsusage.fsu_blocksize;
+	    availKB = fsusage.fsu_bavail/1024 * fsusage.fsu_blocksize;
 
-	if (disksize > avail) {
-	  disksize = avail;
+	if (disksize > availKB) {
+	  disksize = availKB;
 	}
 	total_disksize += disksize;
     }

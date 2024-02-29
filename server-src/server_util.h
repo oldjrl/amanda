@@ -121,6 +121,6 @@ gboolean dump_match_storage_disk_level(storage_t *storage, disk_t *disk, int lev
 storage_t *dump_find_storage_disk_level(disk_t *disk, int level);
 
 /* Return the amount of space available on the holding disk for degraded dumps. */
-intmax_t degraded_disk_available_size(void);
+intmax_t degraded_disk_available_KB(void);
 
 #endif	/* SERVER_UTIL_H */
