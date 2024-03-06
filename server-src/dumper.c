@@ -45,6 +45,7 @@
 #include "amutil.h"
 #include "timestamp.h"
 #include "amxml.h"
+#include "glib-util.h"
 
 #ifdef FAILURE_CODE
 static int dumper_try_again=0;
@@ -1645,9 +1646,9 @@ do_dump(
 		// shm_ring direct
 		db->shm_ring_direct = shm_ring_direct;
 		shm_ring_direct = NULL;
-		shm_thread_mutex = g_mutex_new();
-		shm_thread_cond  = g_cond_new();
-		shm_thread = g_thread_create(handle_shm_ring_direct,
+		shm_thread_mutex = G_MUTEX_NEW();
+		shm_thread_cond  = G_COND_NEW();
+		shm_thread = G_THREAD_CREATE("shm_ring_direct", handle_shm_ring_direct,
 				(gpointer)db, TRUE, NULL);
 	    } else {
 		// stream to shm_ring
@@ -1670,9 +1671,9 @@ do_dump(
 		shm_ring_consumer_set_size(db->shm_ring_consumer,
 					   NETWORK_BLOCK_BYTES*4,
 					   NETWORK_BLOCK_BYTES);
-		shm_thread_mutex = g_mutex_new();
-		shm_thread_cond  = g_cond_new();
-		shm_thread = g_thread_create(handle_shm_ring_to_fd_thread,
+		shm_thread_mutex = G_MUTEX_NEW();
+		shm_thread_cond  = G_COND_NEW();
+		shm_thread = G_THREAD_CREATE("shm_ring_to_fd", handle_shm_ring_to_fd_thread,
 				(gpointer)db, TRUE, NULL);
 	    } else {
 		// stream to fd
@@ -1716,9 +1717,9 @@ do_dump(
 	g_thread_join(shm_thread);
 	shm_thread = NULL;
 
-	g_mutex_free(shm_thread_mutex);
+	G_MUTEX_FREE(shm_thread_mutex);
 	shm_thread_mutex = NULL;
-	g_cond_free(shm_thread_cond);
+	G_COND_FREE(shm_thread_cond);
 	shm_thread_cond  = NULL;
     }
 

@@ -22,6 +22,7 @@
  */
 
 #include "amanda.h"
+#include "glib-util.h"
 #include "fileheader.h"
 #include "amxfer.h"
 #include "xfer-server.h"
@@ -829,9 +830,9 @@ start_impl(
     GError *error = NULL;
 
     if (elt->input_mech == XFER_MECH_SHM_RING) {
-        self->holding_thread = g_thread_create(shm_holding_thread, (gpointer)self, FALSE, &error);
+      self->holding_thread = G_THREAD_CREATE("shm_holding", shm_holding_thread, (gpointer)self, FALSE, &error);
     } else {
-        self->holding_thread = g_thread_create(holding_thread, (gpointer)self, FALSE, &error);
+      self->holding_thread = G_THREAD_CREATE("holding", holding_thread, (gpointer)self, FALSE, &error);
     }
     if (!self->holding_thread) {
         g_critical(_("Error creating new thread: %s (%s)"),
@@ -1008,8 +1009,8 @@ instance_init(
     XferDestHolding *self = XFER_DEST_HOLDING(elt);
     elt->can_generate_eof = FALSE;
 
-    self->state_mutex = g_mutex_new();
-    self->state_cond = g_cond_new();
+    self->state_mutex = G_MUTEX_NEW();
+    self->state_cond = G_COND_NEW();
 
     self->fd = -1;
     self->use_bytes = 0;
@@ -1041,8 +1042,8 @@ finalize_impl(
     XferDestHolding *self = XFER_DEST_HOLDING(obj_self);
     XferElement *elt = XFER_ELEMENT(self);
 
-    g_mutex_free(self->state_mutex);
-    g_cond_free(self->state_cond);
+    G_MUTEX_FREE(self->state_mutex);
+    G_COND_FREE(self->state_cond);
 
     if (elt->shm_ring) {
 	close_consumer_shm_ring(elt->shm_ring);

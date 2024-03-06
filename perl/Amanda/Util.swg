@@ -41,6 +41,8 @@
 #include "match.h"
 #include "amxml.h"
 #include "timestamp.h"
+#include "glib-util.h"
+#include "clock.h"
 %}
 
 void glib_init(void);
@@ -552,9 +554,14 @@ void weaken_ref(SV *rv) {
 %inline %{
 static guint64 gettimeofday_for_perl(void)
 {
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 32))
+    times_t t = g_get_real_time();
+    return (guint64) t;
+#else
     GTimeVal t;
     g_get_current_time(&t);
     return (guint64)t.tv_sec * G_USEC_PER_SEC + (guint64)t.tv_usec;
+#endif
 }
 %}
 
