@@ -142,7 +142,7 @@ static int queue_length(schedlist_t *q);
 static void read_flush(void *cookie);
 static void read_schedule(void *cookie);
 static void set_vaultqs(void);
-static void short_dump_state(const char * prefix);
+static void short_dump_state(const char * suffix);
 static void start_a_flush_wtaper(wtaper_t    *wtaper,
                                  gboolean    *state_changed);
 static void start_a_flush_taper(taper_t    *taper);
@@ -5461,8 +5461,12 @@ queue_length(
     return g_list_length(q->head);
 }
 
+/* If you change this, tests using check_amstatus() may break,
+    since they assume this output is pretty fixed.
+   Add new fields at the end.
+*/
 static void
-short_dump_state(const char *prefix)
+short_dump_state(const char *suffix)
 {
     int      i, nidle;
     char    *wall_time;
@@ -5470,7 +5474,7 @@ short_dump_state(const char *prefix)
 
     wall_time = walltime_str(curclock());
 
-    g_printf(_("driver: %s state time %s "), prefix, wall_time);
+    g_printf(_("driver: state time %s "), wall_time);
     g_printf(_("free kps: %lu space: %lld taper: "),
 	   network_free_kps(NULL),
 	   (long long)holding_free_space());
@@ -5525,6 +5529,7 @@ short_dump_state(const char *prefix)
     g_printf(_(" roomq: %d"), queue_length(&roomq));
     g_printf(_(" wakeup: %d"), (int)sleep_time);
     g_printf(_(" driver-idle: %s\n"), _(idle_strings[idle_reason]));
+    g_printf(_(" sequence: %s\n"), suffix);
     interface_state(wall_time);
     holdingdisk_state(wall_time);
     fflush(stdout);
