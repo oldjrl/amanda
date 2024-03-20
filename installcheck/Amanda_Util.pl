@@ -229,15 +229,22 @@ my $buf;
 {
     open (my $fh, ">", $testfile) or die("Opening $testfile: $!");
     print $fh 'abcd' x 256;
+    # Get a file descriptor we know will be invalid
+    $fd = fileno($fh);
     close($fh);
 }
 
+my $rv;
+
+# I don't think using -1 as a file descriptor is legal
+#  POSIX::read() "uses file descriptors such as those obtained by calling POSIX::open"
+#  and seem to claim all available memory
 $! = 0;
-my $rv = Amanda::Util::full_read(-1, 13);
+$rv = Amanda::Util::full_read($fd, 13);
 isnt($!, '', "bad full_read gives a nonzero errno ($!)");
 
 $! = 0;
-$rv = Amanda::Util::full_write(-1, "hello", 5);
+$rv = Amanda::Util::full_write($fd, "hello", 5);
 isnt($!, '', "bad full_write gives a nonzero errno ($!)");
 
 $fd = POSIX::open($testfile, POSIX::O_RDONLY);

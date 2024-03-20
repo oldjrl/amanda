@@ -1256,12 +1256,24 @@ sub _release_reservation {
 	    $fm = $self->{'device'}->file();
 	    $kb = $self->{'device_size'} / 1024;
 	    my $tl = $self->{'taperscan'}->{'tapelist'};
-	    my $tle = $tl->lookup_tapelabel($label);
-
+	    my $barcode = undef;
+	    my $tle = undef;
+	    # The following was added when installcheck/Amanda_Taper_Scribe
+	    #  revealed that running without a tapelist would produce:
+	    #  Can't call method "lookup_tapelabel" on an undefined value at
+	    #  ../amanda/perl/Amanda/Taper/Scribe.pm line 1259.
+	    if ($tl) {
+		$tle = $tl->lookup_tapelabel($label);
+		$barcode = $tle->{'barcode'};
+	    } else {
+		push @errors, "no tapelist to update";
+	    }
 	    # log a message for amreport
 	    $self->{'feedback'}->scribe_notif_log_info(
-	        message => "tape $label Barcode $tle->{'barcode'} kb $kb fm $fm [OK]");
-	    if ($self->{'taperscan'}->{'storage'}->{'erase_on_failure'} && $self->{'tape_labelled'} && !$self->{'tape_good'}) {
+	        message => $barcode ?
+                 "tape $label Barcode $barcode kb $kb fm $fm [OK]" :
+                 "tape $label kb $kb fm $fm [OK]");
+	    if ($self->{'taperscan'}->{'storage'}->{'erase_on_failure'} && $self->{'tape_labelled'} && !$self->{'tape_good'} && $tl && $tle) {
 		# rewrite the tapelist
 		$tl->reload(1);
 		$label = $self->{'device'}->volume_label;

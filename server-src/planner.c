@@ -547,8 +547,6 @@ main(
 	cmddatas = read_cmdfile(conf_cmdfile);
 	g_free(conf_cmdfile);
 
-	holding_cleanup(NULL, stderr);
-
 	/* get *all* flushable files in holding, without checking against
 	 * the disklist (which may not contain some of the dumps) */
 	holding_list = holding_get_files_for_flush(NULL);
