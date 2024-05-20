@@ -351,13 +351,14 @@ my $dev_dir = "/dev";
 $dev_dir = '/devices/isa/fdc@1,3f0' if -e '/devices/isa/fdc@1,3f0';
 $reply = $rest->get("http://localhost:5001/amanda/v1.0/services/discover?host=localhost&auth=local&application=amgtar&diskdevice=$dev_dir");
 
-@sorted = sort { $a->{dle_name} cmp $b->{dle_name} } @{$reply->{'body'}};
+@sorted = sort { if (defined($a->{dle_name}) and defined($b->{dle_name})) { $a->{dle_name} cmp $b->{dle_name} } else { -1 } } @{$reply->{'body'}};
 $reply->{body} = \@sorted;
 
 my $bad_block = 0;
 my $bad_char = 0;
 foreach my $message (@{$reply->{'body'}}) {
-    -l $message->{'full_path'};
+  -l $message->{'full_path'} if defined($message->{'full_path'});
+  if (defined($message->{'file_type'})) {
     if (-b _) {
 	if ($message->{'file_type'} ne 'block') {
 	    $bad_block++;
@@ -379,6 +380,7 @@ foreach my $message (@{$reply->{'body'}}) {
 	$bad_char++;
 	diag("message: " . Data::Dumper::Dumper($message));
     }
+  }
 }
 
 is($bad_block, 0, "found bad block");

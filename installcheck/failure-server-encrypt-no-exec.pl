@@ -346,7 +346,7 @@ FAILED DUMP DETAILS:
   sendbackup: info APPLICATION=amrandom
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
   sendbackup: info end
-  ? data encrypt: error: couldn't exec server encryption '$cwd/amcat-error-no-exec': Permission denied.
+  ? data encrypt: error: couldn't exec server encryption '$cwd/amcat-error-no-exec': Permission denied. -?
   ? data encrypt: exited with status 1
   \\--------
   /-- localhost diskname2 lev 0 FAILED [write to encryption program failed: Broken pipe]
@@ -354,7 +354,7 @@ FAILED DUMP DETAILS:
   sendbackup: info APPLICATION=amrandom
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
   sendbackup: info end
-  ? data encrypt: error: couldn't exec server encryption '$cwd/amcat-error-no-exec': Permission denied.
+  ? data encrypt: error: couldn't exec server encryption '$cwd/amcat-error-no-exec': Permission denied. -?
   ? data encrypt: exited with status 1
   \\--------
 
