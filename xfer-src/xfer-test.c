@@ -1532,7 +1532,7 @@ test_xfer_simple(void)
     g_main_loop_run(default_main_loop());
     g_assert(xfer->status == XFER_DONE);
 
-    xfer_unref(xfer);
+    XFER_UNREF(xfer);
 
     return 1;
 }
@@ -1601,7 +1601,7 @@ test_xfer_files(gboolean add_filters)
     }
     close(rfd);
     close(wfd);
-    xfer_unref(xfer);
+    XFER_UNREF(xfer);
 
     unlink(out_filename); /* ignore any errors */
 
@@ -1650,7 +1650,7 @@ test_glue_combo(
     g_main_loop_run(default_main_loop());
     g_assert(xfer->status == XFER_DONE);
 
-    xfer_unref(xfer);
+    XFER_UNREF(xfer);
 
     return 1;
 }

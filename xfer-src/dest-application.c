@@ -123,10 +123,10 @@ child_watch_callback(
 	    msg->message = errmsg;
 	    xfer_queue_message(XFER_ELEMENT(self)->xfer, msg);
 
-	    xfer_cancel(elt->xfer, __FILE__, __LINE__);
+	    XFER_CANCEL(elt->xfer);
 
 	} else if (elt->cancel_on_success) {
-	    xfer_cancel(elt->xfer, __FILE__, __LINE__);
+	    XFER_CANCEL(elt->xfer);
 	}
     }
     /* this element is as good as cancelled already, so fall through to XMSG_DONE */

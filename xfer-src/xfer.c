@@ -81,24 +81,43 @@ xfer_new(
     return xfer;
 }
 
+#ifdef DEBUG_XFER_REF
 void
-xfer_ref(
+xfer_refdb(
 	 Xfer *xfer, char *file, int line)
 {
+#else
+void
+xfer_ref(
+	 Xfer *xfer)
+{
+    static char *file = __FILE__;
+    static int line = __LINE__;
+#endif
     ++xfer->refcount;
-    g_debug("Xfer: ref %s rc %d %s, %d", xfer_repr(xfer), xfer->refcount, file, line);
+
+    g_debug("Xfer: ref %s rc %d %s:%d", xfer_repr(xfer), xfer->refcount, file, line);
 }
 
+#ifdef DEBUG_XFER_REF
+void
+xfer_unrefdb(
+    Xfer *xfer, char *file, int line)
+{
+#else
 void
 xfer_unref(
     Xfer *xfer)
 {
+    static char *file = __FILE__;
+    static int line = __LINE__;
+#endif
     unsigned int i;
     XMsg *msg;
 
     if (!xfer) return; /* be friendly to NULLs */
 
-    g_debug("Xfer: unref %s rc %d", xfer_repr(xfer), xfer->refcount);
+    g_debug("Xfer: unref %s rc %d %s:%d", xfer_repr(xfer), xfer->refcount, file, line);
     if (--xfer->refcount > 0) return;
 
     g_assert(xfer != NULL);
@@ -203,7 +222,7 @@ xfer_start(
     /* set the status to XFER_START and add a reference to our count, so that
      * we are not freed while still in operation.  We'll drop this reference
      * when the status becomes XFER_DONE. */
-    xfer_ref(xfer, __FILE__, __LINE__);
+    XFER_REF(xfer);
     xfer->num_active_elements = 0;
     xfer_set_status(xfer, XFER_START);
 
@@ -284,18 +303,28 @@ xfer_set_offset_and_size(
     xfer_element_set_size(xe, size);
 }
 
+#ifdef DEBUG_XFER_REF
 void
-xfer_cancel(
+xfer_canceldb(
     Xfer *xfer,
-    char *filename,
+    char *file,
     int line
 )
 {
+#else
+void
+xfer_cancel(
+    Xfer *xfer
+)
+{
+    static char *file = __FILE__;
+    static int line = __LINE__;
+#endif
     /* Since xfer_cancel can be called from any thread, we just send a message.
      * The action takes place when the message is received. */
     XferElement *src;
     static char *modulename = "xfer_cancel";
-    g_debug("%s: %s:%d xfer %p, cancelled %x", modulename, filename, line, xfer, xfer->cancelled);
+    g_debug("%s: %s:%d xfer %p, cancelled %x", modulename, file, line, xfer, xfer->cancelled);
     if (xfer->cancelled > 0) return;
     xfer->cancelled++;
     src = g_ptr_array_index(xfer->elements, 0);
@@ -662,7 +691,7 @@ xmsgsource_dispatch(
 
 	/* This transfer is done, so kill it and exit the loop */
 	if (xfer_done) {
-	    xfer_unref(xfer);
+	    XFER_UNREF(xfer);
 	    xfer = NULL;
 	    break;
 	}
@@ -752,7 +781,7 @@ xfer_cancel_with_error(
     xfer_queue_message(elt->xfer, msg);
 
     /* cancel the transfer */
-    xfer_cancel(elt->xfer, __FILE__, __LINE__);
+    XFER_CANCEL(elt->xfer);
 }
 
 gint
