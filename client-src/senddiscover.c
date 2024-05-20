@@ -136,7 +136,7 @@ main(
     check_running_as(RUNNING_AS_CLIENT_LOGIN);
 
 
-    for(; (line = agets(stdin)) != NULL; free(line)) {
+    for(; (line = agets(stdin)) != NULL; g_free(line)) {
 	if (line[0] == '\0')
 	    continue;
 	if(strncmp_const(line, "OPTIONS ") == 0) {
@@ -393,7 +393,7 @@ main(
 
 	{
 	    GString *json_buffer = g_string_new("");
-	    char   *buf = g_malloc(32769);
+	    char   *buf = g_malloc(1024);
 	    size_t  size;
 	    while ((size = read_fully(outfd[0], buf, 1000, NULL)) > 0) {
 		buf[size] = '\0';
