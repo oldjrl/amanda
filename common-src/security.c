@@ -163,7 +163,7 @@ security_streaminit(
     stream->error = g_strdup(_("unknown stream error"));
 }
 
-void security_stream_seterror(security_stream_t *stream, const char *fmt, ...)
+void security_stream_seterror(struct sec_stream *stream, const char *fmt, ...)
 {
     char *buf;
     va_list argp;
@@ -171,27 +171,7 @@ void security_stream_seterror(security_stream_t *stream, const char *fmt, ...)
     arglist_start(argp, fmt);
     buf = g_strdup_vprintf(fmt, argp);
     arglist_end(argp);
-    g_free(stream->error);
-    stream->error = buf;
-    g_debug("security_stream_seterr(%p, %s)", stream, stream->error);
-}
-
-void
-security_stream_close(
-    security_stream_t *	stream)
-{
-    dbprintf(_("security_stream_close(%p)\n"), stream);
-    amfree(stream->error);
-    (*stream->driver->stream_close)(stream);
-}
-
-void
-security_stream_close_async(
-    security_stream_t *	stream,
-    void (*fn)(void *, ssize_t, void *, ssize_t),
-    void *arg)
-{
-    dbprintf(_("security_stream_close_async(%p)\n"), stream);
-    amfree(stream->error);
-    (*stream->driver->stream_close_async)(stream, fn, arg);
+    g_free(stream->secstr.error);
+    stream->secstr.error = buf;
+    g_debug("security_stream_seterr(%p, %s)", stream, stream->secstr.error);
 }

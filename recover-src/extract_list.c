@@ -110,7 +110,7 @@ typedef struct ctl_state_s {
 
 static struct {
     const char *name;
-    security_stream_t *fd;
+    struct sec_stream *fd;
 } amidxtaped_streams[] = {
 #define CTLFD  0
     { "CTL", NULL },
@@ -197,7 +197,7 @@ static ssize_t read_buffer(int datafd,
 			long timeout_s);
 static void clear_tape_list(EXTRACT_LIST *tape_list);
 static void extract_files_child(ctl_data_t *ctl_data);
-static void send_to_tape_server(security_stream_t *stream, char *cmd);
+static void send_to_tape_server(struct sec_stream *stream, char *cmd);
 int writer_intermediary(EXTRACT_LIST *elist);
 int get_amidxtaped_line(void);
 static void handle_child_out(void *);
@@ -1702,7 +1702,7 @@ okay_to_continue(
 
 static void
 send_to_tape_server(
-    security_stream_t *	stream,
+    struct sec_stream *	stream,
     char *		cmd)
 {
     char *msg = g_strconcat(cmd, "\r\n", NULL);

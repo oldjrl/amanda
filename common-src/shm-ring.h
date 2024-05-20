@@ -83,7 +83,7 @@ typedef struct shm_ring_t {
     size_t         data_avail;
 } shm_ring_t;
 
-#include "security.h"
+#include "security-util.h"
 #include "stream.h"
 
 extern GMutex *shm_ring_mutex;
@@ -91,7 +91,7 @@ extern GMutex *shm_ring_mutex;
 int shm_ring_sem_wait(shm_ring_t *shm_ring, sem_t *sem);
 shm_ring_t *shm_ring_create(char **errmsg);
 shm_ring_t *shm_ring_link(char *name);
-void shm_ring_to_security_stream(shm_ring_t *shm_ring, struct security_stream_t *netfd, crc_t *crc);
+void shm_ring_to_security_stream(shm_ring_t *shm_ring, struct sec_stream *netfd, crc_t *crc);
 void shm_ring_consumer_set_size(shm_ring_t *shm_ring, ssize_t ring_size, ssize_t block_size);
 void shm_ring_producer_set_size(shm_ring_t *shm_ring, ssize_t ring_size, ssize_t block_size);
 
