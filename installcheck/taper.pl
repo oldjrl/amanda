@@ -1201,7 +1201,7 @@ SKIP : {
 	qr(^PART taper "ST:TESTCONF" "POOL:TESTCONF" TESTCONF01 2 localhost /var $datestamp 2/-1 0 \[sec [\d.]+ bytes 393216 kps [\d.]+\]$),
 	qr(^PART taper "ST:TESTCONF" "POOL:TESTCONF" TESTCONF01 3 localhost /var $datestamp 3/-1 0 \[sec [\d.]+ bytes 65536 kps [\d.]+\]$),
 	# note no "Will retry.."
-	qr(^INFO taper tape TESTCONF01 kb 832 fm 3 \[OK\]$),
+	qr(^INFO taper tape TESTCONF01 Barcode PTAG00XX kb 832 fm 3 \[OK\]$),
         qr(^INFO taper Slot 4 without label can be labeled$),
 	qr(^START taper datestamp $datestamp "ST:TESTCONF" "POOL:TESTCONF" label TESTCONF02 tape 2$),
 	qr(^PART taper "ST:TESTCONF" "POOL:TESTCONF" TESTCONF02 1 localhost /var $datestamp 4/-1 0 \[sec [\d.]+ bytes 393216 kps [\d.]+\]$),
@@ -1209,7 +1209,7 @@ SKIP : {
 	qr(^DONE taper "ST:TESTCONF" "POOL:TESTCONF" localhost /var $datestamp 5 0 00000000:0 00000000:0 00000000:0 \[sec [\d.]+ bytes 1277952 kps [\d.]+ orig-kb 1912\]$),
 	qr(^PART taper "ST:TESTCONF" "POOL:TESTCONF" TESTCONF02 3 localhost /etc $datestamp 1/-1 0 \[sec [\d.]+ bytes 327680 kps [\d.]+\]$),
 	qr(^DONE taper "ST:TESTCONF" "POOL:TESTCONF" localhost /etc $datestamp 1 0 00000000:0 00000000:0 00000000:0 \[sec [\d.]+ bytes 327680 kps [\d.]+ orig-kb 2012\]$),
-	qr(^INFO taper tape TESTCONF02 kb 736 fm 3 \[OK\]$),
+	qr(^INFO taper tape TESTCONF02 Barcode PTAG01XX kb 736 fm 3 \[OK\]$),
     ], "multipart directtcp PORT-WRITE logged correctly");
 
     $handle = "55-33333";
@@ -1259,13 +1259,13 @@ SKIP : {
 	qr(^PART taper "ST:TESTCONF" "POOL:TESTCONF" TESTCONF01 1 localhost /var $datestamp 1/-1 0 \[sec [\d.]+ bytes 425984 kps [\d.]+\]$),
 	qr(^PART taper "ST:TESTCONF" "POOL:TESTCONF" TESTCONF01 2 localhost /var $datestamp 2/-1 0 \[sec [\d.]+ bytes 425984 kps [\d.]+\]$),
 	# Note: zero-byte part is not logged, but is counted in this INFO line's 'fm' field
-	qr(^INFO taper tape TESTCONF01 kb 832 fm 3 \[OK\]$),
+	qr(^INFO taper tape TESTCONF01 Barcode PTAG00XX kb 832 fm 3 \[OK\]$),
         qr(^INFO taper Slot 4 without label can be labeled$),
 	qr(^START taper datestamp $datestamp "ST:TESTCONF" "POOL:TESTCONF" label TESTCONF02 tape 2$),
 	qr(^PART taper "ST:TESTCONF" "POOL:TESTCONF" TESTCONF02 1 localhost /var $datestamp 3/-1 0 \[sec [\d.]+ bytes 425984 kps [\d.]+\]$),
 	qr(^PART taper "ST:TESTCONF" "POOL:TESTCONF" TESTCONF02 2 localhost /var $datestamp 4/-1 0 \[sec [\d.]+ bytes 393216 kps [\d.]+\]$),
 	qr(^DONE taper "ST:TESTCONF" "POOL:TESTCONF" localhost /var $datestamp 4 0 00000000:0 00000000:0 00000000:0 \[sec [\d.]+ bytes 1671168 kps [\d.]+ orig-kb 2112\]$),
-	qr(^INFO taper tape TESTCONF02 kb 800 fm 2 \[OK\]$),
+	qr(^INFO taper tape TESTCONF02 Barcode PTAG01XX kb 800 fm 2 \[OK\]$),
     ], "multipart directtcp PORT-WRITE with a zero-byte part logged correctly");
     cleanup_log();
 

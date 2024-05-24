@@ -562,37 +562,65 @@ sub diag_diff
 # line betwwen '  /--' and '  \--------' can be in varying order
 
     my $fail = 0;
+    my $optional_regex = qr/ -\\\?$/;
+    my $optional;
 
     my @a = split /\n/, $a;
     my @b = split /\n/, $b;
+
     while (defined(my $la = shift @a)) {
 	my $lb = shift @b;
-
-	if ($la =~ /^  \/-- /) {
+	if ($lb =~ /^  \/-- /) {
 	    my @ax;
 	    my @bx;
 	    push @ax, $la;
 	    push @bx, $lb;
-	    while (($la = shift @a) !~ /  \\--------/) {
-		$lb = shift @b;
-		push @ax, $la;
+	    while (defined($lb = shift @b) && $lb !~ /  \\\\--------/) {
 		push @bx, $lb;
 	    }
-	    $lb = shift @b;
+	    while (defined($la = shift @a) && $la !~ /  \\--------/) {
+		push @ax, $la;
+	    }
 
 	    @ax = sort @ax;
 	    @bx = sort @bx;
-	    while (defined(my $xa = shift @ax)) {
-		my $xb = shift @bx;
-		if ($xa !~ /^$xb$/){
+
+	    while (defined($optional = shift @bx)) {
+		my $xa = shift @ax;
+		my $xb;
+		($xb = $optional) =~ s/$optional_regex//;
+		# Is this line optional?
+		$optional = undef if ($optional eq $xb);
+		while (defined($xa) && $xa !~ /^$xb$/ and $optional){
+		    if (defined($optional = shift @bx)) {
+			($xb = $optional) =~ s/$optional_regex//;
+			$optional = undef if ($optional eq $xb);
+		    } else {
+			$xb = undef;
+		    }
+		}
+		if (!(defined($xa) && defined($xb) && $xa =~ /^$xb$/)) {
 		    $fail = 1;
-		    diag("-$xa");
-		    diag("+$xb");
+		    diag("-$xa") if (defined($xa));
+		    diag("+$xb") if (defined($xb));
 		}
 	    }
+	    next;
 	}
-	if ($la !~ /^$lb$/){
-		$fail = 1;
+	$optional = $lb;
+	($lb = $optional) =~ s/$optional_regex//;
+	$optional = undef if ($optional eq $lb);
+
+	while ($la !~ /^$lb$/ and $optional) {
+	    if (defined($optional = shift @b)) {
+		($lb = $optional) =~ s/$optional_regex//;
+		$optional = undef if ($optional eq $lb);
+	    } else {
+		$lb = undef;
+	    }
+	}
+	if (!(defined($la) && defined($lb) && $la =~ /^$lb$/)) {
+	    $fail = 1;
 	    diag("-$la");
 	    diag("+$lb");
 	}
@@ -624,6 +652,7 @@ sub check_amreport
     my $text = shift || 'amreport';
     my $sorting = shift;
     my $skip_size = shift;
+    my $ignore_regex = shift;
     my $got_report;
     $skip_size = 1 if !defined $skip_size;
 
@@ -648,9 +677,9 @@ sub check_amreport
     $report =~ s/brought to you by Amanda version .*\\/brought to you by Amanda version $Amanda::Constants::VERSION\\/g;
 
     run("amreport", 'TESTCONF');
+    my @lines = split "\n", $Installcheck::Run::stdout;
 
     if ($sorting) {
-	my @lines = split "\n", $Installcheck::Run::stdout;
 	if ($skip_size) {
 	    @lines = grep { $_ !~ /^  sendbackup: size/ } @lines;
 	}
@@ -686,18 +715,24 @@ sub check_amreport
 		}
 	    }
 	}
-	$got_report = join "\n", @new_lines;
-	$got_report .= "\n";
+	@lines = @new_lines;
     } else {
 	if ($skip_size) {
-	    my @lines = split "\n", $Installcheck::Run::stdout;
 	    @lines = grep { $_ !~ /^  sendbackup: size/ } @lines;
-	    $got_report = join "\n", @lines;
-	    $got_report .= "\n";
-	} else {
-	    $got_report = $Installcheck::Run::stdout;
 	}
     }
+
+    @newlines = ();
+OUTER:	foreach my $line (@lines) {
+	    # Ignore any lines that match the ignore regex
+	    foreach my $iregex (@$ignore_regex) {
+		next OUTER if ($line =~ /$iregex/);
+	    }
+	    push @newlines, $line;
+    }
+    @lines = @newlines;
+    $got_report = join "\n", @lines;
+    $got_report .= "\n";
 
 #    ok($got_report =~ $report, "$text: match") || diag_diff($got_report, $report, $text);
     diag_diff($got_report, $report, $text);

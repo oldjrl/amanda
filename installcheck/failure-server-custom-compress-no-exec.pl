@@ -356,7 +356,7 @@ FAILED DUMP DETAILS:
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
   sendbackup: info COMPRESS_SUFFIX=.gz
   sendbackup: info end
-  ? data compress: error: couldn't exec server custom compression '$cwd/amcat-error-no-exec': Permission denied.
+  ? data compress: error: couldn't exec server custom compression '$cwd/amcat-error-no-exec': Permission denied. -?
   ? data compress: exited with status 1
   \\--------
   /-- localhost diskname2 lev 0 FAILED [write to compression program failed: Broken pipe]
@@ -365,7 +365,7 @@ FAILED DUMP DETAILS:
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
   sendbackup: info COMPRESS_SUFFIX=.gz
   sendbackup: info end
-  ? data compress: error: couldn't exec server custom compression '$cwd/amcat-error-no-exec': Permission denied.
+  ? data compress: error: couldn't exec server custom compression '$cwd/amcat-error-no-exec': Permission denied. -?
   ? data compress: exited with status 1
   \\--------
 

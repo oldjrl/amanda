@@ -401,6 +401,7 @@ FAILED DUMP DETAILS:
   sendbackup: client-CRC 839b74a4:1075200
   sendbackup: end
   ? data compress: exited with status 1
+  ? data compress: error: couldn't exec server custom compression '$cwd/amcat-error-no-exec': Permission denied. -?
   \\--------
   /-- localhost diskname2 lev 0 FAILED [amcat-error-end: failure Y]
   sendbackup: info BACKUP=APPLICATION
@@ -413,6 +414,7 @@ FAILED DUMP DETAILS:
   sendbackup: client-CRC 839b74a4:1075200
   sendbackup: end
   ? data compress: exited with status 1
+  ? data compress: error: couldn't exec server custom compression '$cwd/amcat-error-no-exec': Permission denied. -?
   \\--------
 
 
