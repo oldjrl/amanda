@@ -2314,7 +2314,7 @@ handle_taper_error(
     char    *qname = quote_string(sp->disk->name);
     gboolean fail_taper = FALSE;
     gboolean fail_sched = FALSE;
-    
+
     if (wtaper->input_error) {
 	g_printf("driver: taper failed %s %s: %s\n",
 		   dp->host->hostname, qname, wtaper->input_error);
@@ -2393,7 +2393,7 @@ handle_taper_result(
     int      i;
     off_t    partsize;
     gboolean check_for_done = FALSE;
-    
+
     assert(cookie != NULL);
     taper = cookie;
 
@@ -5920,7 +5920,7 @@ static char *wtaper_state(wtaper_t *wtaper)
   int len;
   int newmax;
   int strstart;
-  
+
   /* Put the hex value of the state in buffer. */
   snprintf(buf, maxlen, "0x%x ", wtaper->state);
   strstart = strlen(buf);

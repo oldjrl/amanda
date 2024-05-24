@@ -259,7 +259,7 @@ main(
     identlist_t il;
     cmddatas_t *cmddatas;
     tape_properties_t *stp;
-    
+
     if (argc > 1 && argv && argv[1] && g_str_equal(argv[1], "--version")) {
 	printf("planner-%s\n", VERSION);
 	return (0);
@@ -3395,7 +3395,7 @@ static void delay_one_dump(est_t *ep, int delete, ...)
     one_est_t *estimate = ep->dump_est;
     disk_t *dp = ep->disk;
     tape_properties_t *stp = get_tape_properties(ep->dump_est);
-	
+
     arglist_start(argp, delete);
 
     stp->total_tape_size -= stp->tt_blocksize_kb + estimate->csize + stp->tape_mark;
@@ -4081,7 +4081,7 @@ static int
 set_tape_property_index(one_est_t *oep, int i)
 {
   int old_index = oep->tape_property_index;
-  
+
   if (i < 0 || i > nb_storage) {
     g_fprintf(stderr, _("set_tape_property_index: index %d out of range\n"), i);
   } else {
@@ -4094,7 +4094,7 @@ static int
 get_tape_property_index(one_est_t *oep)
 {
   int old_index = oep->tape_property_index;
-  
+
   if (old_index != -1 && old_index > nb_storage) {
     g_fprintf(stderr, _("get_tape_property_index: index %d out of range\n"),
 	      old_index);

@@ -87,7 +87,7 @@ child_watch_callback(
     XMsg *msg;
     char *errmsg = NULL;
     int exitcode = 0;
-    
+
     g_assert(pid == self->child_pid);
     self->child_pid = -1; /* it's gone now.. */
 
