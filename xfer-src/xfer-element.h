@@ -532,14 +532,25 @@ XferElement *xfer_filter_drain(void);
  * @param need_root: become root before exec'ing the subprocess
  * @return: new element
  */
-XferElement *xfer_filter_process(gchar **argv,
+#ifdef DEBUG_XFER_REF
+#define CALL_XFER_FILTER_PROCESS(argv, root, drain, cancel, ignore) \
+  xfer_filter_processdb((argv), (root), (drain), (cancel), (ignore), __FILE__, __LINE__)
+XferElement *xfer_filter_processdb(gchar **argv,
     gboolean need_root,
     gboolean must_drain,
     gboolean cancel_on_success,
     gboolean ignore_broken_pipe,
-    char *filename,
+    char *file,
     int line);
-
+#else
+#define CALL_XFER_FILTER_PROCESS(argv, root, drain, cancel, ignore) \
+  xfer_filter_process((argv), (root), (drain), (cancel), (ignore))
+XferElement *xfer_filter_process(gchar **argv,
+    gboolean need_root,
+    gboolean must_drain,
+    gboolean cancel_on_success,
+    gboolean ignore_broken_pipe);
+#endif
 /* return the stderr of the filter */
 
 int filter_process_get_err_fd(XferElement *elt);

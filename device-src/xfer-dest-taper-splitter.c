@@ -643,8 +643,8 @@ part_done:
 	    part_status = PART_FAILED;
 	    xfer_cancel_with_error(elt, "shm_ring cancelled");
 	}
-	sem_post(elt->shm_ring->sem_read);
-	sem_post(elt->shm_ring->sem_read);
+	sem_post(elt->shm_ring->sem_ready);
+	sem_post(elt->shm_ring->sem_start);
 	sem_post(elt->shm_ring->sem_read);
 	sem_post(elt->shm_ring->sem_write);
     }
@@ -698,6 +698,8 @@ device_thread(
 
     DBG(1, "(this is the device thread)");
 
+    XFER_REF(elt->xfer);
+    
     if (elt->input_mech == XFER_MECH_PUSH_BUFFER) {
 	self->mem_ring = create_mem_ring();
 	init_mem_ring(self->mem_ring, self->max_memory, self->device->block_size);
@@ -786,6 +788,8 @@ device_thread(
 device_thread_done:
     /* tell the main thread we're done */
     xfer_queue_message(XFER_ELEMENT(self)->xfer, xmsg_new(XFER_ELEMENT(self), XMSG_DONE, 0));
+
+    XFER_UNREF(elt->xfer);
 
     return NULL;
 }

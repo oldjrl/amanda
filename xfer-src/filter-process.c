@@ -130,10 +130,10 @@ child_watch_callback(
 	    msg->message = errmsg;
 	    xfer_queue_message(XFER_ELEMENT(self)->xfer, msg);
 
-	    xfer_cancel(elt->xfer, __FILE__, __LINE__);
+	    XFER_CANCEL(elt->xfer);
 
 	} else if (elt->cancel_on_success) {
-	    xfer_cancel(elt->xfer, __FILE__, __LINE__);
+	    XFER_CANCEL(elt->xfer);
 	}
     }
     /* this element is as good as cancelled already, so fall through to XMSG_DONE */
@@ -358,21 +358,36 @@ xfer_filter_process_get_type (void)
 }
 
 /* create an element of this class; prototype is in xfer-element.h */
+#ifdef DEBUG_XFER_REF
+XferElement *
+xfer_filter_processdb(
+    gchar **argv,
+    gboolean need_root,
+    gboolean must_drain,
+    gboolean cancel_on_success,
+    gboolean ignore_broken_pipe,
+    char * file,
+    int line
+)
+{
+#else
 XferElement *
 xfer_filter_process(
     gchar **argv,
     gboolean need_root,
     gboolean must_drain,
     gboolean cancel_on_success,
-    gboolean ignore_broken_pipe,
-    char * filename,
-    int line
+    gboolean ignore_broken_pipe
 )
 {
+    static char *file = __FILE__;
+    static int line = __LINE__;
+#endif
+
     XferFilterProcess *xfp = (XferFilterProcess *)g_object_new(XFER_FILTER_PROCESS_TYPE, NULL);
     XferElement *elt = XFER_ELEMENT(xfp);
     static char *modulename = "xfer_filter_process";
-    g_debug("%s: new %s:%d %p", modulename, filename, line, xfp);
+    g_debug("%s: new %s:%d %p", modulename, file, line, xfp);
 
     if (!argv || !*argv)
 	error("xfer_filter_process got a NULL or empty argv");

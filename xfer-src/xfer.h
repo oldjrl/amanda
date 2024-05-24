@@ -116,15 +116,25 @@ Xfer *xfer_new(struct XferElement **elements, unsigned int nelements);
  *
  * @param xfer: the transfer
  */
-void xfer_ref(Xfer *xfer, char *file, int line);
-
+#ifdef DEBUG_XFER_REF
+#define XFER_REF(xfer) xfer_refdb((xfer), __FILE__, __LINE__)
+void xfer_refdb(Xfer *xfer, char *file, int line);
+#else
+#define XFER_REF(xfer) xfer_ref((xfer))
+void xfer_ref(Xfer *xfer);
+#endif
 /* Decrease the reference count of a transfer, possibly freeing it.  A running
  * transfer (state neither XFER_INIT nor XFER_DONE) will not be freed.
  *
  * @param xfer: the transfer
  */
+#ifdef DEBUG_XFER_REF
+#define XFER_UNREF(xfer) xfer_unrefdb((xfer), __FILE__, __LINE__)
+void xfer_unrefdb(Xfer *xfer, char *file, int line);
+#else
+#define XFER_UNREF(xfer) xfer_unref((xfer))
 void xfer_unref(Xfer *xfer);
-
+#endif
 /* Get a GSource which will produce events corresponding to messages from
  * this transfer.  This is a "peek" operation, so the reference count for the
  * GSource is not affected.  Note that the same GSource is returned on every
@@ -174,7 +184,7 @@ void xfer_set_offset_and_size(Xfer *xfer, gint64 offset, gint64 size);
  * as follows:
  *
  * - XFER_RUNNING
- * - xfer_cancel()  (note state may still be XFER_RUNNING on return)
+ * - XFER_CANCEL()  (note state may still be XFER_RUNNING on return)
  * - XFER_CANCELLING
  * - (individual elements' cancel() methods are invoked)
  * - XFER_CANCELLED
@@ -186,8 +196,13 @@ void xfer_set_offset_and_size(Xfer *xfer, gint64 offset, gint64 size);
  *
  * @param xfer: the Xfer object
  */
-void xfer_cancel(Xfer *xfer, char *filename, int line);
-
+#ifdef DEBUG_XFER_REF
+#define XFER_CANCEL(xfer) xfer_canceldb((xfer), __FILE__, __LINE__)
+void xfer_canceldb(Xfer *xfer, char *file, int line);
+#else
+#define XFER_CANCEL(xfer) xfer_cancel((xfer))
+void xfer_cancel(Xfer *xfer);
+#endif
 /*
  * Utilities
  */

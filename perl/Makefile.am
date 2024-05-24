@@ -88,7 +88,9 @@ EXTRA_DIST += $(AMGLUE_SWG)
 #  to minimize type collisions with other SWIG-generated modules
 # -I$(srcdir) use include files relative to this directory
 SWIG_OPTIONS=-perl5 -proxy -DSWIG_TYPE_TABLE=SWIG_TYPES_Amanda -I$(srcdir)
-
+if DEBUG_XFER_REF
+SWIG_OPTIONS+=-DDEBUG_XFER_REF
+endif
 # Suffix rules.  These are parallel-build compatible, but may cause
 # strange behavior if there are other .c files in this directory.  The
 # 'rm -f $@' is needed because SWIG sometimes fails to remove its output
@@ -469,6 +471,7 @@ libXfer_la_LIBADD = amglue/libamglue.la \
 Amanda_DATA += Amanda/Xfer.pm
 MAINTAINERCLEANFILES += Amanda/Xfer.c Amanda/Xfer.pm
 EXTRA_DIST += Amanda/Xfer.swg Amanda/Xfer.pm Amanda/Xfer.pod
+Amanda/Xfer.pm Amanda/Xfer.c: $(CONFIG_HEADER) Amanda/Xfer.swg
 
 if WANT_NDMP
 # PACKAGE: Amanda::NDMP
