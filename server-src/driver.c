@@ -4121,6 +4121,9 @@ handle_chunker_result(
             }
             amfree(qname);
 
+	    event_release(chunker->ev_read);
+	    chunker->ev_read = NULL;
+
 	    chunker->result = cmd;
 	    quit_chunker(chunker);
 

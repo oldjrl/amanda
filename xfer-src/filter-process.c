@@ -103,12 +103,12 @@ child_watch_callback(
     } else if (WIFSIGNALED(status)) {
 	int signal = WTERMSIG(status);
 	if (signal != SIGKILL || !self->child_killed) {
-	  errmsg = g_strdup_printf("%s %d died on signal %d", self->argv[0], pid, signal);
+	    errmsg = g_strdup_printf("%s %d died on signal %d", self->argv[0], pid, signal);
 	    g_debug("%s: %s", xfer_element_repr(elt), errmsg);
 	}
     }
 
-    if (IS_XFER_FILTER_PROCESS(self)) {
+   if (IS_XFER_FILTER_PROCESS(self)) {
     if (errmsg) {
 	msg = xmsg_new(XFER_ELEMENT(self), XMSG_INFO, 0);
 	msg->message = g_strdup(errmsg);
@@ -129,6 +129,7 @@ child_watch_callback(
 	    msg = xmsg_new(XFER_ELEMENT(self), XMSG_ERROR, 0);
 	    msg->message = errmsg;
 	    xfer_queue_message(XFER_ELEMENT(self)->xfer, msg);
+
 	    xfer_cancel(elt->xfer, __FILE__, __LINE__);
 
 	} else if (elt->cancel_on_success) {
@@ -138,9 +139,9 @@ child_watch_callback(
     /* this element is as good as cancelled already, so fall through to XMSG_DONE */
 
     xfer_queue_message(XFER_ELEMENT(self)->xfer, xmsg_new(XFER_ELEMENT(self), XMSG_DONE, 0));
-  } else {
+   } else {
       g_debug("%s: %p doesn't appear to be an XferFilterProcess", modulename, data);
-  }
+   }
   } else {
     g_debug("%s: NULL data", modulename);
   }
@@ -264,13 +265,13 @@ cancel_impl(
     /* and kill the process, if it's not already dead; this will likely send
      * SIGPIPE to anything upstream. */
     if (self->child_pid != -1) {
-      /* Indicate this xfer is defunct by passing NULL to the child_watch_callback */
-      g_source_set_callback(self->child_watch,
-	    (GSourceFunc)child_watch_callback, NULL, NULL);
-      g_debug("%s: killing child process %d", xfer_element_repr(elt), self->child_pid);
+	/* Indicate this xfer is defunct by passing NULL to the child_watch_callback */
+        g_source_set_callback(self->child_watch,
+			      (GSourceFunc)child_watch_callback, NULL, NULL);
+	g_debug("%s: killing child process %d", xfer_element_repr(elt), self->child_pid);
 	if (kill(self->child_pid, SIGKILL) < 0) {
 	    /* log but ignore */
-	  g_debug("while killing child process %d: %s", self->child_pid, strerror(errno));
+	    g_debug("while killing child process %d: %s", self->child_pid, strerror(errno));
 	    return FALSE; /* downstream should not expect EOF */
 	}
 

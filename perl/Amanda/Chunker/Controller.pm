@@ -732,6 +732,8 @@ sub send_port_and_get_header {
             if ($errmsg) {
                 $finished_cb->("Get header: $errmsg");
             } else {
+		# Don't advance to the next step if there isn't data
+		return unless $xfer->get_status() == $Amanda::Xfer::XFER_DONE;
                 $steps->{'got_header'}->();
             }
         } else {

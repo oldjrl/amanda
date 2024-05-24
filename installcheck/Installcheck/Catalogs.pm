@@ -306,6 +306,8 @@ sub _parse {
 	    if (/^(.*): pid (\d*) executable (.*) version (.*)$/) {
 		$_ = "$1 pid $2 executable $3 version $Amanda::Constants::VERSION\n"
 	    }
+	    my $stagingdir = "$amandastatedir/staging";
+	    $_ =~ s"/var/lib/amanda/staging"$stagingdir"g;
 	    $$fileref .= $_;
 	}
     }

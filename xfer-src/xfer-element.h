@@ -537,8 +537,8 @@ XferElement *xfer_filter_process(gchar **argv,
     gboolean must_drain,
     gboolean cancel_on_success,
     gboolean ignore_broken_pipe,
-				 char *filename,
-				 int line);
+    char *filename,
+    int line);
 
 /* return the stderr of the filter */
 
