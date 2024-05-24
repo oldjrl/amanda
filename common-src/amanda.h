@@ -434,7 +434,17 @@ time_t	unctime(char *timestr);
 #define	amfree(ptr) do {						\
     if((ptr) != NULL) {							\
 	int e__errno = errno;						\
-	free(ptr);							\
+	g_free(ptr);							\
+	(ptr) = NULL;							\
+	errno = e__errno;						\
+	(void)(ptr);  /* Fix value never used warning at end of routines */ \
+    }									\
+} while (0)
+
+#define	am_g_free(ptr) do {						\
+    if((ptr) != NULL) {							\
+	int e__errno = errno;						\
+	g_free(ptr);							\
 	(ptr) = NULL;							\
 	errno = e__errno;						\
 	(void)(ptr);  /* Fix value never used warning at end of routines */ \
