@@ -58,9 +58,9 @@ static void	bsd_accept(const struct security_driver *,
 			void (*)(security_handle_t *, pkt_t *),
 			void *);
 static void	bsd_close(void *);
-static void *	bsd_stream_server(void *);
+static struct sec_stream *	bsd_stream_server(void *);
 static int	bsd_stream_accept(void *);
-static void *	bsd_stream_client(void *, int);
+static struct sec_stream *	bsd_stream_client(void *, int);
 static void	bsd_stream_close(void *);
 static void	bsd_stream_close_async(void *s, void (*fn)(void *, ssize_t, void *, ssize_t), void *arg);
 static int	bsd_stream_auth(void *);
@@ -428,7 +428,7 @@ bsd_close(
  * Create the server end of a stream.  For bsd, this means setup a tcp
  * socket for receiving a connection.
  */
-static void *
+static struct sec_stream *
 bsd_stream_server(
     void *	h)
 {
@@ -470,7 +470,7 @@ bsd_stream_accept(
 
     bs->fd = stream_accept(bs->socket, 30, STREAM_BUFSIZE, STREAM_BUFSIZE);
     if (bs->fd < 0) {
-	security_stream_seterror(&bs->secstr,
+	security_stream_seterror(bs,
 	    _("can't accept new stream connection: %s"), strerror(errno));
 	return (-1);
     }
@@ -480,7 +480,7 @@ bsd_stream_accept(
 /*
  * Return a connected stream
  */
-static void *
+static struct sec_stream *
 bsd_stream_client(
     void *	h,
     int		id)
@@ -667,7 +667,7 @@ stream_read_sync_callback(
 	n = read(bs->fd, bs->databuf, sizeof(bs->databuf));
     } while ((n < 0) && ((errno == EINTR) || (errno == EAGAIN)));
     if (n < 0)
-        security_stream_seterror(&bs->secstr, "%s", strerror(errno));
+        security_stream_seterror(bs, "%s", strerror(errno));
     bs->len = n;
     sync_pktlen = bs->len;
     if (sync_pktlen > 0) {
@@ -743,7 +743,7 @@ bsd_stream_read_to_shm_ring_callback(
 
 ring_failed:
     if (n < 0) {
-	security_stream_seterror(&bs->secstr, "%s", strerror(errno));
+	security_stream_seterror(bs, "%s", strerror(errno));
 	bsd_stream_read_cancel(bs);
 	bs->shm_ring->mc->cancelled = TRUE;
 	bs->shm_ring->mc->eof_flag = TRUE;
@@ -760,7 +760,7 @@ ring_failed:
 	if (bs->shm_ring->mc->written == 0 && bs->shm_ring->mc->need_sem_ready) {
 	    sem_post(bs->shm_ring->sem_ready);
 	    if (shm_ring_sem_wait(bs->shm_ring, bs->shm_ring->sem_start) != 0) {
-		security_stream_seterror(&bs->secstr, "%s", strerror(errno));
+		security_stream_seterror(bs, "%s", strerror(errno));
 		bsd_stream_read_cancel(bs);
 		bs->shm_ring->mc->cancelled = TRUE;
 		bs->shm_ring->mc->eof_flag = TRUE;
@@ -894,7 +894,7 @@ stream_read_callback(
     if (n <= 0)
 	bsd_stream_read_cancel(bs);
     if (n < 0)
-	security_stream_seterror(&bs->secstr, "%s", strerror(errno));
+	security_stream_seterror(bs, "%s", strerror(errno));
 
     (*bs->fn)(bs->arg, bs->databuf, n);
 }

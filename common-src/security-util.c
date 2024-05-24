@@ -136,7 +136,7 @@ sec_close(
     if (rh->rs != NULL) {
 	/* This may be null if we get here on an error */
 	stream_recvpkt_cancel(rh);
-	security_stream_close(&rh->rs->secstr);
+	security_stream_close(rh->rs);
     }
     /* keep us from getting here again */
     rh->sech.driver = NULL;
@@ -227,8 +227,8 @@ stream_sendpkt(
      _("sec: stream_sendpkt: %s (%d) pkt_t (len %zu) contains:\n\n\"%s\"\n\n"),
       pkt_type2str(pkt->type), pkt->type, strlen(pkt->body), pkt->body);
 
-    if (security_stream_write(&rh->rs->secstr, buf, len) < 0) {
-	security_seterror(&rh->sech, "%s", security_stream_geterror(&rh->rs->secstr));
+    if (security_stream_write(rh->rs, buf, len) < 0) {
+	security_seterror(&rh->sech, "%s", security_stream_geterror(rh->rs));
 	amfree(buf);
 	return (-1);
     }
@@ -271,7 +271,7 @@ stream_recvpkt(
     }
     rh->fn.recvpkt = fn;
     rh->arg = arg;
-    security_stream_read(&rh->rs->secstr, recvpkt_callback, rh);
+    security_stream_read(rh->rs, recvpkt_callback, rh);
 }
 
 /*
@@ -304,7 +304,7 @@ stream_recvpkt_cancel(
 
     assert(rh != NULL);
 
-    security_stream_read_cancel(&rh->rs->secstr);
+    security_stream_read_cancel(rh->rs);
     if (rh->ev_timeout != NULL) {
 	event_release(rh->ev_timeout);
 	rh->ev_timeout = NULL;
@@ -336,7 +336,7 @@ tcpm_stream_write(
 
     if (tcpm_send_token(rs->rc, rs->handle, &rs->rc->errmsg,
 			     buf, size)) {
-	security_stream_seterror(&rs->secstr, "%s", rs->rc->errmsg);
+	security_stream_seterror(rs, "%s", rs->rc->errmsg);
 	g_mutex_unlock(stream_write_mutex);
 	return (-1);
     }
@@ -434,7 +434,7 @@ tcpm_stream_read_sync(
     sync_pktlen = 0;
     sync_pkt = NULL;
     if (rs->closed_by_network) {
-	security_stream_seterror(&rs->secstr, "Failed to read from handle %d because server already closed it", rs->handle);
+	security_stream_seterror(rs, "Failed to read from handle %d because server already closed it", rs->handle);
 	return -1;
     }
     rs->r_callback.handle = rs->handle;
@@ -728,7 +728,7 @@ tcpm_send_token_callback(
 	rval = rs->rc->driver->data_write_non_blocking(rs->rc, awd->copy_iov, awd->copy_nb_iov);
 	save_errno = errno;
 	if (rval < 0) {
-	    security_stream_seterror(&rs->secstr, "write error to: %s", strerror(save_errno));
+	    security_stream_seterror(rs, "write error to: %s", strerror(save_errno));
 	    if (awd->fn) {
 		(*awd->fn)(awd->arg, rs->rc->async_write_data_size, NULL, -1);
 	    }
@@ -761,7 +761,7 @@ tcpm_send_token_callback(
     if (done && !awd->buf) { /* closing */
 
 	if (rs->handle < 10000 || rs->closed_by_network == 1) {
-	    security_stream_read_cancel(&rs->secstr);
+	    security_stream_read_cancel(rs);
 	    rs->closed_by_network = 1;
 	    sec_tcp_conn_put(rs->rc);
 	}
@@ -1156,7 +1156,7 @@ tcpma_stream_accept(
  * Return a connected stream.  For sec, this means setup a stream
  * with the supplied handle.
  */
-void *
+struct sec_stream *
 tcpma_stream_client(
     void *	h,
     int		id)
@@ -1197,7 +1197,7 @@ tcpma_stream_client(
  * Create the server end of a stream.  For sec, this means setup a stream
  * object and allocate a new handle for it.
  */
-void *
+struct sec_stream *
 tcpma_stream_server(
     void *	h)
 {
@@ -1258,13 +1258,13 @@ tcpma_stream_close(
     if (rs->rc->write != -1)
 	tcpm_stream_write(rs, &buf, 0);
     if (rs->handle < 10000 || rs->closed_by_network == 1) {
-	security_stream_read_cancel(&rs->secstr);
+	security_stream_read_cancel(rs);
 	rs->closed_by_network = 1;
 	sec_tcp_conn_put(rs->rc);
     }
     rs->closed_by_me = 1;
     if (rs->closed_by_network) {
-	amfree(((security_stream_t *)rs)->error);
+	amfree(rs->secstr.error);
     }
 }
 
@@ -1292,7 +1292,7 @@ tcpma_stream_close_async(
  * Create the server end of a stream.  For bsdudp, this means setup a tcp
  * socket for receiving a connection.
  */
-void *
+struct sec_stream *
 tcp1_stream_server(
     void *	h)
 {
@@ -1351,7 +1351,7 @@ tcp1_stream_accept(
     if (bs->socket > 0) {
 	bs->fd = stream_accept(bs->socket, 30, STREAM_BUFSIZE, STREAM_BUFSIZE);
 	if (bs->fd < 0) {
-	    security_stream_seterror(&bs->secstr,
+	    security_stream_seterror(bs,
 				     _("can't accept new stream connection: %s"),
 				     strerror(errno));
 	    return (-1);
@@ -1365,7 +1365,7 @@ tcp1_stream_accept(
 /*
  * Return a connected stream
  */
-void *
+struct sec_stream *
 tcp1_stream_client(
     void *	h,
     int		id)
@@ -1431,7 +1431,7 @@ tcp_stream_write(
     }
 
     if (full_write(rs->fd, buf, size) < size) {
-        security_stream_seterror(&rs->secstr,
+        security_stream_seterror(rs,
             _("write error on stream %d: %s"), rs->port, strerror(errno));
         return (-1);
     }
@@ -2227,7 +2227,7 @@ recvpkt_callback(
 	(*rh->fn.recvpkt)(rh->arg, NULL, S_ERROR);
 	return;
     case -1:
-	security_seterror(&rh->sech, "%s", security_stream_geterror(&rh->rs->secstr));
+	security_seterror(&rh->sech, "%s", security_stream_geterror(rh->rs));
 	(*rh->fn.recvpkt)(rh->arg, NULL, S_ERROR);
 	return;
     default:
@@ -2285,7 +2285,7 @@ stream_read_sync_callback(
 
     if (rs->rc->pktlen <= 0) {
 	auth_debug(6, _("sec: stream_read_sync_callback: %s\n"), rs->rc->errmsg);
-	security_stream_seterror(&rs->secstr, "%s", rs->rc->errmsg);
+	security_stream_seterror(rs, "%s", rs->rc->errmsg);
 	if(rs->closed_by_me == 1 && rs->closed_by_network == 0) {
 	    sec_tcp_conn_put(rs->rc);
 	}
@@ -2341,7 +2341,7 @@ stream_read_callback(
     if (rs->rc->pktlen <= 0) {
 	auth_debug(5, _("Xsec: stream_read_callback: %s\n"), rs->rc->errmsg);
 	tcpm_stream_read_cancel(rs);
-	security_stream_seterror(&rs->secstr, "%s", rs->rc->errmsg);
+	security_stream_seterror(rs, "%s", rs->rc->errmsg);
 	if(rs->closed_by_me == 1 && rs->closed_by_network == 0) {
 	    sec_tcp_conn_put(rs->rc);
 	}
@@ -2398,7 +2398,7 @@ stream_read_to_shm_ring_callback(
     if (rs->rc->pktlen <= 0) {
 	auth_debug(5, _("sec: stream_read_to_shm_ring_callback: %s\n"), rs->rc->errmsg);
 	tcpm_stream_read_cancel(rs);
-	security_stream_seterror(&rs->secstr, "%s", rs->rc->errmsg);
+	security_stream_seterror(rs, "%s", rs->rc->errmsg);
 	if(rs->closed_by_me == 1 && rs->closed_by_network == 0) {
 	    sec_tcp_conn_put(rs->rc);
 	}
@@ -3469,4 +3469,22 @@ generic_data_read(
 {
     struct tcp_conn *rc = cookie;
     return read(rc->read, (char *)vbuf, sizebuf);
+}
+
+void
+security_stream_close(
+    struct sec_stream *	stream)
+{
+    dbprintf(_("security_stream_close(%p)\n"), stream);
+    (*stream->secstr.driver->stream_close)(stream);
+}
+
+void
+security_stream_close_async(
+    struct sec_stream *	stream,
+    void (*fn)(void *, ssize_t, void *, ssize_t),
+    void *arg)
+{
+    dbprintf(_("security_stream_close_async(%p)\n"), stream);
+    (*stream->secstr.driver->stream_close_async)(stream, fn, arg);
 }

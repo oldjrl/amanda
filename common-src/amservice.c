@@ -53,7 +53,7 @@ static am_feature_t *our_features = NULL;
 static char *our_feature_string = NULL;
 static int remote_errors = 0;
 static event_handle_t *event_in;
-static security_stream_t *fd;
+static struct sec_stream *fd;
 static gboolean event_paused = FALSE;
 
 /* local functions */
@@ -92,7 +92,7 @@ typedef struct lstream_t {
 typedef struct rstream_t {
     char              *name;
     int                port;
-    security_stream_t *fd;
+    struct sec_stream *fd;
     lstream_t         *lstream;
 } rstream_t;
 
@@ -436,7 +436,7 @@ connect_streams(
     for (r = 0; r < nb_rstream; r++) {
 	for (l = 0; l < nb_lstream; l++) {
 	    if (g_str_equal(rstreams[r].name, lstreams[l].name)) {
-		security_stream_t *fd;
+		struct sec_stream *fd;
 
 		rstreams[r].lstream = &lstreams[l];
 		lstreams[l].rstream = &rstreams[r];

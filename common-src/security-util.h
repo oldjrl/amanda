@@ -35,8 +35,8 @@
 #include "stream.h"
 #include "dgram.h"
 #include "conffile.h"
-#include "shm-ring.h"
 #include "security.h"
+#include "shm-ring.h"
 #include "event.h"
 
 #define auth_debug(i, ...) do {		\
@@ -80,7 +80,6 @@ typedef struct async_write_data {
 } async_write_data;
 
 struct sec_handle;
-struct sec_stream;
 
 typedef struct reader_callback {
     int          handle;
@@ -136,9 +135,6 @@ struct tcp_conn {
 #endif
     gboolean            paused;
 };
-
-
-struct sec_stream;
 
 /*
  * This is the private handle data.
@@ -284,14 +280,14 @@ ssize_t	tcpm_recv_token(struct tcp_conn *, int *, char **, char **, ssize_t *);
 void	tcpm_close_connection(void *, char *);
 
 int	tcpma_stream_accept(void *);
-void *	tcpma_stream_client(void *, int);
-void *	tcpma_stream_server(void *);
+struct sec_stream *	tcpma_stream_client(void *, int);
+struct sec_stream *	tcpma_stream_server(void *);
 void	tcpma_stream_close(void *);
 void    tcpma_stream_close_async(void *s, void (*fn)(void *, ssize_t, void *, ssize_t), void *arg);
 
-void *	tcp1_stream_server(void *);
+struct sec_stream *	tcp1_stream_server(void *);
 int	tcp1_stream_accept(void *);
-void *	tcp1_stream_client(void *, int);
+struct sec_stream *	tcp1_stream_client(void *, int);
 
 int	tcp_stream_write(void *, const void *, size_t);
 int	tcp_stream_write_async(void *, void *, size_t, void (*)(void *, ssize_t, void *, ssize_t), void *);
@@ -337,5 +333,11 @@ char	*sec_get_authenticated_peer_name_hostname(security_handle_t *);
 ssize_t generic_data_write(void *, struct iovec *iov, int iovcnt);
 ssize_t generic_data_write_non_blocking(void *, struct iovec *iov, int iovcnt);
 ssize_t generic_data_read(void *, void *vbuf, size_t sizebuf, int timeout);
+
+/* Closes a security stream and frees up resources associated with it. */
+void security_stream_close(struct sec_stream *);
+
+/* Closes a security stream and frees up resources associated with it. */
+void security_stream_close_async(struct sec_stream *, void (*fn)(void *, ssize_t, void *, ssize_t), void *arg);
 
 #endif /* _SECURITY_INFO_H */

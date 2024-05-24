@@ -33,12 +33,7 @@
 #ifndef SECURITY_H
 #define	SECURITY_H
 
-struct security_stream_t;
-
 #include "packet.h"
-#include "shm-ring.h"
-
-struct security_handle;
 
 /*
  * Overview
@@ -61,6 +56,42 @@ typedef enum {
     S_ERROR,	/* an error occurred during reception. Call security_geterror()
 		 * for more information */
 } security_status_t;
+
+/*
+ * Handles
+ */
+
+/*
+ * This structure is a handle to a connection to a host for transmission
+ * of protocol packets (pkt_t's).  The underlying security type defines
+ * the actual protocol and transport.
+ *
+ * This handle is reference counted so that it can be used inside of
+ * security streams after it has been closed by our callers.
+ */
+typedef struct security_driver security_driver_t;
+typedef struct security_handle {
+    const security_driver_t *driver;
+    char *error;
+} security_handle_t;
+
+/*
+ * Streams
+ */
+
+/*
+ * This structure is a handle to a stream connection to a host for
+ * transmission of random data such as dumps or index data.
+ */
+typedef struct security_stream {
+    const security_driver_t *driver;
+    char *error;
+} security_stream_t;
+
+struct sec_stream;
+
+#include "security-util.h"
+#include "shm-ring.h"
 
 /*
  * Drivers
@@ -149,7 +180,7 @@ typedef struct security_driver {
      * describing the stream. The first member of this object MUST be a
      * security_stream_t, because it will be cast to that.
      */
-    void *(*stream_server)(void *);
+    struct sec_stream *(*stream_server)(void *);
 
     /*
      * Accept a stream created by stream_server
@@ -162,7 +193,7 @@ typedef struct security_driver {
      * first member of this object MUST be a security_stream_t, because it will
      * be cast to that.
      */
-    void *(*stream_client)(void *, int);
+    struct sec_stream *(*stream_client)(void *, int);
 
     /*
      * Close a stream opened with stream_server or stream_client
@@ -231,23 +262,6 @@ typedef struct security_driver {
 /* Given a security type ("KRB4", "BSD", "SSH", etc), returns a pointer to that
  * type's security_driver_t, or NULL if no driver exists.  */
 const security_driver_t *security_getdriver(const char *);
-
-/*
- * Handles
- */
-
-/*
- * This structure is a handle to a connection to a host for transmission
- * of protocol packets (pkt_t's).  The underlying security type defines
- * the actual protocol and transport.
- *
- * This handle is reference counted so that it can be used inside of
- * security streams after it has been closed by our callers.
- */
-typedef struct security_handle {
-    const security_driver_t *driver;
-    char *error;
-} security_handle_t;
 
 /* void security_connect(
  *  const security_driver_t *driver,
@@ -352,35 +366,22 @@ void security_seterror(security_handle_t *, const char *, ...)
  * security_handle_t.  */
 void security_handleinit(security_handle_t *, const security_driver_t *);
 
-/*
- * Streams
- */
-
-/*
- * This structure is a handle to a stream connection to a host for
- * transmission of random data such as dumps or index data.
- */
-typedef struct security_stream_t {
-    const security_driver_t *driver;
-    char *error;
-} security_stream_t;
-
 /* Initializes a security_stream_t. This is meant to be called only by security
  * drivers to initialize the common part of a newly allocated
  * security_stream_t. */
 void security_streaminit(security_stream_t *, const security_driver_t *);
 
-/* const char *security_stream_geterror(security_stream_t *);
+/* const char *security_stream_geterror(struct sec_stream *);
  *
  * Returns a descriptive error message for the last error condition on this
  * stream. */
-#define	security_stream_geterror(stream)	((stream)->error)
+#define	security_stream_geterror(stream)	(stream->secstr.error)
 
 /* Sets the string that security_stream_geterror() returns. */
-void security_stream_seterror(security_stream_t *, const char *, ...)
+void security_stream_seterror(struct sec_stream *, const char *, ...)
     G_GNUC_PRINTF(2, 3);
 
-/* security_stream_t *security_stream_server(security_handle_t *);
+/* struct sec_stream *security_stream_server(security_handle_t *);
  *
  * Creates the server end of a security stream, and will prepare to receive a
  * connection from the host on the other end of the security handle passed.
@@ -390,7 +391,7 @@ void security_stream_seterror(security_stream_t *, const char *, ...)
 #define	security_stream_server(handle)	\
     (*(handle)->driver->stream_server)(handle)
 
-/* int security_stream_accept(security_stream_t *);
+/* int security_stream_accept(struct sec_stream *);
  *
  * Given a security stream created by security_stream_server, blocks until a
  * connection is made from the remote end.  After calling stream_server,
@@ -399,9 +400,9 @@ void security_stream_seterror(security_stream_t *, const char *, ...)
  * calling security_stream_geterror().
  */
 #define	security_stream_accept(stream)		\
-    (*(stream)->driver->stream_accept)(stream)
+    (stream->secstr.driver->stream_accept)(stream)
 
-/* security_stream_t *security_stream_client(security_handle_t *, int);
+/* struct sec_stream *security_stream_client(security_handle_t *, int);
  *
  * Creates the client end of a security stream, and connects it to the machine
  * on the other end of the security handle. The 'id' argument identifies which
@@ -413,13 +414,7 @@ void security_stream_seterror(security_stream_t *, const char *, ...)
 #define	security_stream_client(handle, id)	\
     (*(handle)->driver->stream_client)(handle, id)
 
-/* Closes a security stream and frees up resources associated with it. */
-void security_stream_close(security_stream_t *);
-
-/* Closes a security stream and frees up resources associated with it. */
-void security_stream_close_async(security_stream_t *, void (*fn)(void *, ssize_t, void *, ssize_t), void *arg);
-
-/* int security_stream_auth(security_stream_t *);
+/* int security_stream_auth(struct sec_stream *);
  *
  * Authenticate a connected security stream.  This should be called by the
  * target after security_stream_accept returns successfully, and by the client
@@ -428,9 +423,9 @@ void security_stream_close_async(security_stream_t *, void (*fn)(void *, ssize_t
  * security_stream_geterror().
  */
 #define	security_stream_auth(stream)		\
-    (*(stream)->driver->stream_auth)(stream)
+    (stream->secstr.driver->stream_auth)(stream)
 
-/* int security_stream_id(security_stream_t *);
+/* int security_stream_id(struct sec_stream *);
  *
  * Returns an identifier which can be used to connect to this security stream
  * with security_stream_client().  Typical usage is for one end of a connection
@@ -438,18 +433,18 @@ void security_stream_close_async(security_stream_t *, void (*fn)(void *, ssize_t
  * for that stream to the other side. The other side will then connect to that
  * id with security_stream_client(). */
 #define	security_stream_id(stream)		\
-    (*(stream)->driver->stream_id)(stream)
+    (stream->secstr.driver->stream_id)(stream)
 
-/* int security_stream_write(security_stream_t *, const void *, size_t);
+/* int security_stream_write(struct sec_stream *, const void *, size_t);
  *
  * Writes a chunk of data to the security stream. Returns 0 on success, or
  * negative on error. Error messages can be obtained by calling
  * security_stream_geterror().
  */
 #define	security_stream_write(stream, buf, size)	\
-    (*(stream)->driver->stream_write)(stream, buf, size)
+    (stream->secstr.driver->stream_write)(stream, buf, size)
 
-/* int security_stream_write_async(security_stream_t *, void *, size_t,
+/* int security_stream_write_async(struct sec_stream *, void *, size_t,
  *                                 void (*fn)(void *, ssize_t, void *, size_t),
  *                                 void *arg);
  *
@@ -459,10 +454,10 @@ void security_stream_close_async(security_stream_t *, void (*fn)(void *, ssize_t
  * The buffer is automacaly freed, the caller should not use of free it.
  */
 #define	security_stream_write_async(stream, buf, size, fn, arg)	\
-    (*(stream)->driver->stream_write_async)(stream, buf, size, fn, arg)
+    (stream->secstr.driver->stream_write_async)(stream, buf, size, fn, arg)
 
 /* void security_stream_read(
- *  security_stream_t *stream,
+ *  struct sec_stream *stream,
  *  void (*fn)(void *, size_t),
  *  void *arg);
 
@@ -472,9 +467,9 @@ void security_stream_close_async(security_stream_t *, void (*fn)(void *, ssize_t
  * be retrieved by calling security_stream_geterror().  This function uses the
  * event interface. Callbacks will only be generated while in event_loop(). */
 #define	security_stream_read(stream, fn, arg)		\
-    (*(stream)->driver->stream_read)(stream, fn, arg)
+    (stream->secstr.driver->stream_read)(stream, fn, arg)
 
-/* void security_stream_read_sync(security_stream_t *, void **);
+/* void security_stream_read_sync(struct sec_stream *, void **);
  *
  * Return a buffer of data read from the stream. This function will block until
  * something can be read, but other event will be fired. A pointer to the data
@@ -482,10 +477,10 @@ void security_stream_close_async(security_stream_t *, void (*fn)(void *, ssize_t
  * size will be negative. An error message can be retrieved by calling
  * security_stream_geterror(). This function uses the event interface.  */
 #define	security_stream_read_sync(stream, buf)		\
-    (*(stream)->driver->stream_read_sync)(stream, buf)
+    (stream->secstr.driver->stream_read_sync)(stream, buf)
 
 /* void security_stream_read_to_shm_ring)(
- * security_stream_t *stream,
+ * struct sec_stream *stream,
  * void (*fn)(void *, void *, ssize_t),
  * shm_ring_t *,
  * void *arg);
@@ -494,25 +489,25 @@ void security_stream_close_async(security_stream_t *, void (*fn)(void *, ssize_t
  * fn is called for each block
  */
 #define security_stream_read_to_shm_ring(stream, fn, shm_ring, arg) \
-    (*(stream)->driver->stream_read_to_shm_ring)(stream, fn, shm_ring, arg)
+    (stream->secstr.driver->stream_read_to_shm_ring)(stream, fn, shm_ring, arg)
 
-/* void security_stream_read_cancel(security_stream_t *);
+/* void security_stream_read_cancel(struct sec_stream *);
  *
  * Cancels a previous read request. */
 #define	security_stream_read_cancel(stream)		\
-    (*(stream)->driver->stream_read_cancel)(stream)
+    (stream->secstr.driver->stream_read_cancel)(stream)
 
-/* void security_stream_pause(security_stream_t *);
+/* void security_stream_pause(struct sec_stream *);
  *
  * Pause all read requests on the connection. */
 #define	security_stream_pause(stream)		\
-    (*(stream)->driver->stream_pause)(stream)
+    (stream->secstr.driver->stream_pause)(stream)
 
-/* void security_stream_resume(security_stream_t *);
+/* void security_stream_resume(struct sec_stream *);
  *
  * Resume all read requests on the connection. */
 #define	security_stream_resume(stream)		\
-    (*(stream)->driver->stream_resume)(stream)
+    (stream->secstr.driver->stream_resume)(stream)
 
 /* void security_close_connection(security_handle_t *, hostname *);
  *

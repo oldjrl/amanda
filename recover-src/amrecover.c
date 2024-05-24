@@ -91,7 +91,7 @@ security_handle_t *gsech;
 
 static struct {
     const char *name;
-    security_stream_t *fd;
+    struct sec_stream *fd;
 } streams[] = {
 #define MESGFD  0
     { "MESG", NULL },
@@ -804,6 +804,7 @@ bad_nak:
      * Connect the streams to their remote ports
      */
     for (i = 0; i < NSTREAMS; i++) {
+        struct sec_stream * ss;
 /*@i@*/	if (ports[i] == -1)
 	    continue;
 	streams[i].fd = security_stream_client(sech, ports[i]);

@@ -34,7 +34,7 @@
 #include "conffile.h"
 #include "event.h"
 #include "packet.h"
-#include "security.h"
+#include "security-util.h"
 #include "protocol.h"
 
 #define proto_debug(i, ...) do {	\

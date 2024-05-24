@@ -153,7 +153,7 @@ struct active_service {
 	int fd_write;			/* pipe to child process */
 	event_handle_t *ev_read;	/* it's read event handle */
 	event_handle_t *ev_write;	/* it's write event handle */
-	security_stream_t *netfd;	/* stream to amanda server */
+	struct sec_stream *netfd;	/* stream to amanda server */
 	shm_ring_t *shm_ring;		/* when reading from shm-ring */
 	struct active_service *as;	/* pointer back to our enclosure */
     } data[DATA_FD_COUNT];
@@ -217,6 +217,13 @@ main(
 #if defined(USE_REUSEADDR)
     const int on = 1;
     int r;
+#endif
+
+#if 0
+    static int do_sleep = 1;
+    while (do_sleep) {
+      sleep(60);
+    }
 #endif
 
     glib_init();
@@ -1540,6 +1547,7 @@ process_readnetfd(
     }
 
     if (security_stream_write(dh->netfd, as->databuf, (size_t)n) < 0) {
+        abort();
 	/* stream has croaked */
 	event_release(dh->ev_read);
 	dh->ev_read = NULL;
