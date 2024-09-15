@@ -148,6 +148,13 @@ xfer_unref(
 	XferElement *elt = (XferElement *)g_ptr_array_index(xfer->elements, i);
 
 	elt->xfer = NULL;
+
+	/* Once the parent xfer is gone,
+	 *  the upstream/downstream references become invalid.
+	 */
+	elt->downstream = NULL;
+	elt->upstream = NULL;
+
 	g_object_unref(elt);
     }
     g_ptr_array_free(xfer->elements, TRUE);
