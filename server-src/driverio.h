@@ -153,9 +153,6 @@ typedef struct wtaper_s {
     char       *dst_labels_str;
     GSList     *dst_labels;
     TaperState  state;
-    off_t       left;
-    off_t       written;		// Number of kb already written to tape
-    int         nb_dle;			/* number of dle on the volume */
     gboolean    ready;
     gboolean    allow_take_scribe_from;
     vaultqs_t   vaultqs;		/* to vault from another storage */
@@ -178,6 +175,9 @@ typedef struct taper_s {
     off_t           flush_threshold_dumped;
     off_t           flush_threshold_scheduled;
     off_t           taperflush;
+    off_t       left;	       /* Kb left on volume */
+    off_t       written;		// Number of kb already written to tape
+    int         nb_dle;			/* number of dle on the volume */
     wtaper_t       *wtapetable;
     wtaper_t       *last_started_wtaper;
     wtaper_t       *sent_first_write;

@@ -220,6 +220,8 @@ start_one_tape_process(
 	taper->vaultqss = NULL;
 	taper->degraded_mode = no_taper;
 	taper->down = FALSE;
+	taper->left = taper->tape_length;
+	taper->written = 0;
 
 	taper->wtapetable = g_new0(wtaper_t, tapetable[nb_taper].nb_worker + 1);
 	if (!taper->wtapetable) {
@@ -237,8 +239,6 @@ start_one_tape_process(
 	    wtaper->first_label = NULL;
 	    wtaper->first_fileno = 0;
 	    wtaper->state = TAPER_STATE_DEFAULT;
-	    wtaper->left = 0;
-	    wtaper->written = 0;
 	    wtaper->vaultqs.src_labels_str = NULL;
 	    wtaper->vaultqs.src_labels = NULL;
 	    wtaper->vaultqs.vaultq.head = NULL;

@@ -98,7 +98,6 @@ static int   schedule_done;			// 1 if we don't wait for a
 						//   schedule from the planner
 static int   force_flush;			// All dump are terminated, we
 						// must now respect taper_flush
-static int nb_sent_new_tape = 0;
 static int taper_started = 0;
 static int nb_storage;
 static cmddatas_t *cmddatas = NULL;
@@ -120,9 +119,9 @@ static assignedhd_t **build_diskspace(char *destname);
 static int client_constrained(disk_t *dp);
 static void deallocate_bandwidth(netif_t *ip, unsigned long kps);
 static void dump_schedule(schedlist_t *qp, char *str);
-static assignedhd_t **find_diskspace(off_t size, int *cur_idle,
-					assignedhd_t *preferred);
+static assignedhd_t **find_diskspace(off_t size, assignedhd_t *preferred);
 static unsigned long network_free_kps(netif_t *ip);
+static off_t holding_allocated_space(void);
 static off_t holding_free_space(void);
 static void dumper_chunker_result(job_t *job);
 static void dumper_taper_result(job_t *job);
@@ -142,12 +141,10 @@ static int queue_length(schedlist_t *q);
 static void read_flush(void *cookie);
 static void read_schedule(void *cookie);
 static void set_vaultqs(void);
-static void short_dump_state(const char * suffix);
-static void start_a_flush_wtaper(wtaper_t    *wtaper,
-                                 gboolean    *state_changed);
+static void short_dump_state(const char *module, const char * suffix);
+static gboolean start_a_flush_wtaper(wtaper_t    *wtaper);
 static void start_a_flush_taper(taper_t    *taper);
-static void start_a_vault_wtaper(wtaper_t    *wtaper,
-                                 gboolean    *state_changed);
+static gboolean start_a_vault_wtaper(wtaper_t    *wtaper);
 static void start_a_vault_taper(taper_t    *taper);
 static void start_a_vault(void);
 static void start_a_flush(void);
@@ -159,12 +156,13 @@ static int no_taper_flushing(void);
 static gboolean no_taper_active(void);
 static int active_dumper(void);
 static void fix_index_header(sched_t *sp);
+static int all_queues_empty(void);
 static int all_tapeq_empty(void);
 static gboolean is_all_work_done(int line);
 static gboolean is_label_in_use(char *label);
 static void add_label_in_use(char *label);
 static void remove_label_in_use(char *label);
-static char *wtaper_state(wtaper_t *wtaper);
+static char *wtaper_state_to_string(wtaper_t *wtaper);
 static void flag_event_loop_done(int line);
 static void quit_chunker(chunker_t *chunker);
 
@@ -611,7 +609,7 @@ main(
     schedule_done = no_dump;
     force_flush = 0;
 
-    short_dump_state("main-start");
+    short_dump_state("main", "start");
     /* Create an event we can use to terminate the process
        once all dumps are complete.
        The event won't be triggered. Its release is what will
@@ -621,19 +619,19 @@ main(
     dumps_done = event_create(0, EV_WAIT, NULL, NULL);
     event_wait(dumps_done);
     dumps_done = NULL;
-    short_dump_state("main-done");
+    short_dump_state("main", "done");
 
     force_flush = 1;
 
     /* mv runq to directq */
-    short_dump_state("move-runq-todirectq-start");
+    short_dump_state("main", "move-runq-todirectq-start");
     g_printf("Move runq to directq\n");
     while (!empty(runq)) {
 	sched_t *sp = dequeue_sched(&runq);
 	sp->action = ACTION_DUMP_TO_TAPE;
 	headqueue_sched(&directq, sp);
     }
-    short_dump_state("move-runq-todirectq-end");
+    short_dump_state("main", "move-runq-todirectq-end");
 
     run_server_global_scripts(EXECUTE_ON_POST_BACKUP, get_config_name(),
 			      driver_timestamp);
@@ -714,12 +712,12 @@ main(
 	amfree(qname);
     }
 
-    short_dump_state("main-pre-vault");
+    short_dump_state("main", "pre-vault");
 
     if (!no_vault) {
 	nb_storage = startup_vault_tape_process(taper_program, no_taper);
 	set_vaultqs();
-	short_dump_state("main-vault");
+	short_dump_state("main", "vault");
 	/* close device for storage */
 	for (taper = tapetable; taper < tapetable+nb_storage ; taper++) {
 	    if (!taper->degraded_mode && taper->storage_name &&
@@ -747,7 +745,7 @@ main(
 	  event_wait(dumps_done);
 	  dumps_done = NULL;
 	}
-	short_dump_state("main-vault-post-loop");
+	short_dump_state("main", "vault-post-loop");
 
 	/* quit no-vault storage */
 	for (taper = tapetable; taper < tapetable+nb_storage ; taper++) {
@@ -764,12 +762,15 @@ main(
 		    taper->nb_wait_reply++;
 		}
 		taper->nb_scan_volume++;
+		taper->ev_read = event_create(taper->fd, EV_READFD,
+					      handle_taper_result, taper);
+		event_activate(taper->ev_read);
 		taper_cmd(taper, wtaper, START_TAPER, NULL, taper->wtapetable[0].name, 0, driver_timestamp);
 		vaulters += 1;
 	    }
 	}
 
-	short_dump_state("main-post-vault");
+	short_dump_state("main", "post-vault");
 
 	if (vaulters) {
 	  start_a_vault();
@@ -779,7 +780,7 @@ main(
 	}
     }
 
-    short_dump_state("main-pre-close");				/* for amstatus */
+    short_dump_state("main", "pre-close");				/* for amstatus */
 
     /* close device for storage */
     closers = 0;
@@ -807,7 +808,7 @@ main(
       event_wait(dumps_done);
       dumps_done = NULL;
     }
-    short_dump_state("main-post-close");				/* for amstatus */
+    short_dump_state("main", "post-close");				/* for amstatus */
 
     g_printf(_("driver: QUITTING time %s telling children to quit\n"),
            walltime_str(curclock()));
@@ -1026,7 +1027,7 @@ start_a_flush_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_TAPE_STARTED) {
-		start_a_flush_wtaper(wtaper, &state_changed);
+		state_changed = start_a_flush_wtaper(wtaper);
 	    }
 	}
 
@@ -1035,7 +1036,7 @@ start_a_flush_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_RESERVATION) {
-		start_a_flush_wtaper(wtaper, &state_changed);
+		state_changed = start_a_flush_wtaper(wtaper);
 	    }
 	}
 
@@ -1044,7 +1045,7 @@ start_a_flush_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_TAPE_STARTED) {
-		start_a_flush_wtaper(wtaper, &state_changed);
+		state_changed = start_a_flush_wtaper(wtaper);
 	    }
 	}
 
@@ -1053,7 +1054,7 @@ start_a_flush_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_RESERVATION) {
-		start_a_flush_wtaper(wtaper, &state_changed);
+		state_changed = start_a_flush_wtaper(wtaper);
 	    }
 	}
 
@@ -1062,7 +1063,7 @@ start_a_flush_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_WAIT_FOR_TAPE) {
-		start_a_flush_wtaper(wtaper, &state_changed);
+		state_changed = start_a_flush_wtaper(wtaper);
 	    }
 	}
 
@@ -1071,7 +1072,7 @@ start_a_flush_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_TAPE_REQUESTED) {
-		start_a_flush_wtaper(wtaper, &state_changed);
+		state_changed = start_a_flush_wtaper(wtaper);
 	    }
 	}
 	for (wtaper = taper->wtapetable;
@@ -1079,7 +1080,7 @@ start_a_flush_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_INIT) {
-		start_a_flush_wtaper(wtaper, &state_changed);
+		state_changed = start_a_flush_wtaper(wtaper);
 	    }
 	}
 	for (wtaper = taper->wtapetable;
@@ -1087,19 +1088,18 @@ start_a_flush_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_IDLE) {
-		start_a_flush_wtaper(wtaper, &state_changed);
+		state_changed = start_a_flush_wtaper(wtaper);
 	    }
 	}
 
     if (state_changed) {
-	short_dump_state("start_a_flush_taper-state-changed");
+      short_dump_state("start_a_flush_taper", "state-changed");
     }
 }
 
-static void
+static gboolean
 start_a_flush_wtaper(
-    wtaper_t    *wtaper,
-    gboolean    *state_changed)
+    wtaper_t    *wtaper)
 {
     GList  *fit;
     sched_t *sp = NULL;
@@ -1114,6 +1114,7 @@ start_a_flush_wtaper(
     char *why_no_new_tape = NULL;
     taper_t  *taper = wtaper->taper;
     wtaper_t *wtaper1;
+    gboolean state_changed = FALSE;
 
     result_tape_action = tape_action(wtaper, &why_no_new_tape, TRUE);
 
@@ -1125,7 +1126,6 @@ start_a_flush_wtaper(
     } else if (result_tape_action & TAPE_ACTION_NEW_TAPE) {
 	wtaper->state &= ~TAPER_STATE_WAIT_FOR_TAPE;
 	wtaper->state |= TAPER_STATE_WAIT_NEW_TAPE;
-	nb_sent_new_tape++;
 	taper_cmd(taper, wtaper, NEW_TAPE, wtaper->job->sched, NULL, 0, NULL);
     } else if (result_tape_action & TAPE_ACTION_NO_NEW_TAPE) {
 	wtaper->state &= ~TAPER_STATE_WAIT_FOR_TAPE;
@@ -1133,7 +1133,7 @@ start_a_flush_wtaper(
 	wtaper->state |= TAPER_STATE_DONE;
 	taper->degraded_mode = TRUE;
 	start_degraded_mode(&runq);
-	*state_changed = TRUE;
+	state_changed = TRUE;
     } else if (result_tape_action & TAPE_ACTION_MOVE) {
 	/* move from wtaper to wtaper1 */
 	wtaper1 = idle_taper(taper);
@@ -1143,8 +1143,7 @@ start_a_flush_wtaper(
 	    taper_cmd(taper, wtaper, TAKE_SCRIBE_FROM, wtaper->job->sched, wtaper1->name,
 		      0 , NULL);
 	    wtaper->state |= (wtaper1->state & TAPER_STATE_TAPE_STARTED);
-	    wtaper->left = wtaper1->left;
-	    wtaper->nb_dle = wtaper1->nb_dle+1;
+	    taper->nb_dle += 1;
 	    g_free(wtaper->current_dest_label);
 	    wtaper->current_dest_label = wtaper1->current_dest_label;
 	    wtaper1->current_dest_label = NULL;
@@ -1159,7 +1158,7 @@ start_a_flush_wtaper(
 	    } else if (taper->sent_first_write == wtaper1) {
 		taper->sent_first_write = wtaper;
 	    }
-	    *state_changed = TRUE;
+	    state_changed = TRUE;
 	}
     }
 
@@ -1191,19 +1190,17 @@ start_a_flush_wtaper(
 
 	extra_tapes_size = taper->tape_length *
 			   (off_t)(taper->runtapes - taper->current_tape);
+	extra_tapes_size += taper->left;
 	for (wtaper1 = taper->wtapetable;
 	     wtaper1 < taper->wtapetable + taper->nb_worker;
 	     wtaper1++) {
-	    if (wtaper1->state & TAPER_STATE_TAPE_STARTED) {
-		extra_tapes_size += wtaper1->left;
-	    }
 	    if (wtaper1->job) {
-		extra_tapes_size -= (wtaper1->job->sched->act_size - wtaper1->written);
+	      //		extra_tapes_size -= (wtaper1->job->sched->act_size - wtaper1->written);
 	    }
 	}
 
 	if (wtaper->state & TAPER_STATE_TAPE_STARTED) {
-	    taper_left = wtaper->left;
+	    taper_left = taper->left;
 	} else {
 	    taper_left = taper->tape_length;
 	}
@@ -1343,25 +1340,26 @@ start_a_flush_wtaper(
 		slist_free_full(wtaper->dst_labels, g_free);
 		wtaper->dst_labels = NULL;
 	    }
-	    wtaper->written = 0;
+	    //	    wtaper->written = 0;
 	    wtaper->state &= ~TAPER_STATE_IDLE;
 	    wtaper->state |= TAPER_STATE_FILE_TO_TAPE;
 	    qname = quote_string(dp->name);
 	    taper->nb_wait_reply++;
-	    wtaper->nb_dle++;
+	    taper->nb_dle += 1;
 	    if (!(wtaper->state & TAPER_STATE_TAPE_STARTED)) {
 		assert(taper->sent_first_write == NULL);
 		taper->sent_first_write = wtaper;
-		wtaper->nb_dle = 1;
-		wtaper->left = taper->tape_length;
+		//		wtaper->nb_dle = 1;
+		//		wtaper->left = taper->tape_length;
 	    }
 	    taper_cmd(taper, wtaper, FILE_WRITE, sp, sp->destname,
 		      sp->level,
 		      sp->datestamp);
 	    amfree(qname);
-	    *state_changed = TRUE;
+	    state_changed = TRUE;
 	}
     }
+    return state_changed;
 }
 
 static void
@@ -1391,7 +1389,7 @@ start_a_vault_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_WAIT_FOR_TAPE) {
-		start_a_vault_wtaper(wtaper, &state_changed);
+		state_changed = start_a_vault_wtaper(wtaper);
 	    }
 	}
 
@@ -1400,7 +1398,7 @@ start_a_vault_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_TAPE_REQUESTED) {
-		start_a_vault_wtaper(wtaper, &state_changed);
+		state_changed = start_a_vault_wtaper(wtaper);
 	    }
 	}
 	for (wtaper = taper->wtapetable;
@@ -1408,7 +1406,7 @@ start_a_vault_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_INIT) {
-		start_a_vault_wtaper(wtaper, &state_changed);
+		state_changed = start_a_vault_wtaper(wtaper);
 	    }
 	}
 	for (wtaper = taper->wtapetable;
@@ -1416,20 +1414,20 @@ start_a_vault_taper(
 	     wtaper++) {
 	    if (!(wtaper->state & TAPER_STATE_DONE) &&
 		wtaper->state & TAPER_STATE_IDLE) {
-		start_a_vault_wtaper(wtaper, &state_changed);
+		state_changed = start_a_vault_wtaper(wtaper);
 	    }
 	}
 
     if (state_changed) {
-	short_dump_state("start_a_vault_taper-state-changed");
+      short_dump_state("start_a_vault_taper", "state-changed");
     }
 }
 
-static void
+static gboolean
 start_a_vault_wtaper(
-    wtaper_t    *wtaper,
-    gboolean    *state_changed)
+    wtaper_t    *wtaper)
 {
+    gboolean    state_changed = FALSE;
     sched_t *sp = NULL;
     disk_t *dp = NULL;
     char *qname;
@@ -1448,7 +1446,6 @@ start_a_vault_wtaper(
     } else if (result_tape_action & TAPE_ACTION_NEW_TAPE) {
 	wtaper->state &= ~TAPER_STATE_WAIT_FOR_TAPE;
 	wtaper->state |= TAPER_STATE_WAIT_NEW_TAPE;
-	nb_sent_new_tape++;
 	taper_cmd(taper, wtaper, NEW_TAPE, wtaper->job->sched, NULL, 0, NULL);
     } else if (result_tape_action & TAPE_ACTION_NO_NEW_TAPE) {
 	wtaper->state &= ~TAPER_STATE_WAIT_FOR_TAPE;
@@ -1456,7 +1453,7 @@ start_a_vault_wtaper(
 	wtaper->state |= TAPER_STATE_DONE;
 	taper->degraded_mode = TRUE;
 	start_degraded_mode(&runq);
-	*state_changed = TRUE;
+	state_changed = TRUE;
     } else if (result_tape_action & TAPE_ACTION_MOVE) {
 	wtaper1 = idle_taper(taper);
 	if (wtaper1) {
@@ -1466,8 +1463,7 @@ start_a_vault_wtaper(
 		      0 , NULL);
 	    wtaper1->state = TAPER_STATE_DEFAULT;
 	    wtaper->state |= TAPER_STATE_TAPE_STARTED;
-	    wtaper->left = wtaper1->left;
-	    wtaper->nb_dle = wtaper1->nb_dle+1;
+	    taper->nb_dle += 1;
 	    g_free(wtaper->current_dest_label);
 	    wtaper->current_dest_label = wtaper1->current_dest_label;
 	    wtaper1->current_dest_label = NULL;
@@ -1481,7 +1477,7 @@ start_a_vault_wtaper(
 	    } else if (taper->sent_first_write == wtaper1) {
 		taper->sent_first_write = wtaper;
 	    }
-	    *state_changed = TRUE;
+	    state_changed = TRUE;
 	}
     }
 
@@ -1557,17 +1553,16 @@ start_a_vault_wtaper(
 	    amfree(wtaper->dst_labels_str);
 	    slist_free_full(wtaper->dst_labels, g_free);
 	    wtaper->dst_labels = NULL;
-	    wtaper->written = 0;
+	    //	    wtaper->written = 0;
 	    wtaper->state &= ~TAPER_STATE_IDLE;
 	    wtaper->state |= TAPER_STATE_VAULT_TO_TAPE;
 	    qname = quote_string(dp->name);
 	    taper->nb_wait_reply++;
-	    wtaper->nb_dle++;
-	    if (!(wtaper->state & TAPER_STATE_TAPE_STARTED)) {
-		assert(taper->sent_first_write == NULL);
+	    taper->nb_dle += 1;
+	    if (taper->sent_first_write == NULL) {
 		taper->sent_first_write = wtaper;
-		wtaper->nb_dle = 1;
-		wtaper->left = taper->tape_length;
+		//		wtaper->nb_dle = 1;
+		//		wtaper->left = taper->tape_length;
 	    }
 	    taper_cmd(taper, wtaper, VAULT_WRITE, sp, sp->destname,
 		      sp->level,
@@ -1579,11 +1574,12 @@ start_a_vault_wtaper(
 		      _("driver: start_a_vault: %s %s %s %lld %lld\n"),
 		      taperalgo2str(taperalgo), dp->host->hostname, qname,
 		      (long long)sp->act_size,
-		      (long long)wtaper->left);
+		      (long long)taper->left);
 	    amfree(qname);
-	    *state_changed = TRUE;
+	    state_changed = TRUE;
 	}
     }
+    return state_changed;
 }
 
 static int
@@ -1662,7 +1658,7 @@ allow_dump_dle(
 	*cur_idle = max(*cur_idle, IDLE_NO_DISKSPACE);
 	/* no tape space */
     } else if (!wtaper && (holdp =
-	find_diskspace(sp->est_size, cur_idle, NULL)) == NULL) {
+	find_diskspace(sp->est_size, NULL)) == NULL) {
 	*cur_idle = max(*cur_idle, IDLE_NO_DISKSPACE);
 	if (all_tapeq_empty() && dumper_to_holding == 0 && rq != &directq && no_taper_flushing()) {
 	    char *qname = quote_string(diskp->name);
@@ -1744,9 +1740,14 @@ start_some_dumps(
     char *dumporder;
     int  dumper_to_holding = 0;
     gboolean state_changed = FALSE;
+    static char *module = "start_some_dumps";
+    char *sdmsg = NULL;
 
     /* don't start any actual dumps until the taper is started */
-    if (!taper_started && conf_reserve > 0) return;
+    if (!taper_started && conf_reserve > 0) {
+      short_dump_state(module, "taper not started");
+      return;
+    }
 
     idle_reason = IDLE_NO_DUMPERS;
     sleep_time = 0;
@@ -1859,15 +1860,10 @@ start_some_dumps(
 			    for (wtaper1 = taper->wtapetable;
 				 wtaper1 < taper->wtapetable + taper->nb_worker;
 				 wtaper1++) {
-				if (wtaper1->state & TAPER_STATE_TAPE_STARTED) {
-				    extra_tapes_size += wtaper1->left;
-				}
 				if (wtaper1->job) {
 				    sp = wtaper1->job->sched;
 				    if (sp) {
-					extra_tapes_size -=
-							 (sp->est_size -
-						         wtaper1->written);
+					extra_tapes_size -= sp->est_size;
 				    }
 				}
 			    }
@@ -1985,7 +1981,7 @@ start_some_dumps(
 	    sp->disk->host->start_t = now + HOST_DELAY;
 	    if (empty(*rq) && active_dumper() == 0) { force_flush = 1;}
 
-	    short_dump_state("start_some_dumps-sp-chunker-notaper");
+	    sdmsg = "sp-chunker-notaper";
 	} else if (sp != NULL && wtaper != NULL) { /* dump to tape */
 	    job_t *job = alloc_job();
 
@@ -2018,16 +2014,15 @@ start_some_dumps(
 	    amfree(wtaper->dst_labels_str);
 	    slist_free_full(wtaper->dst_labels, g_free);
 	    wtaper->dst_labels = NULL;
-	    wtaper->written = 0;
+	    //	    wtaper->written = 0;
 	    wtaper->state |= TAPER_STATE_DUMP_TO_TAPE;
 	    wtaper->state &= ~TAPER_STATE_IDLE;
-	    wtaper->nb_dle++;
+	    taper->nb_dle += 1;
 	    taper = wtaper->taper;
-	    if (!(wtaper->state & TAPER_STATE_TAPE_STARTED)) {
-		assert(taper->sent_first_write == NULL);
+	    if (taper->sent_first_write == NULL) {
 		taper->sent_first_write = wtaper;
-		wtaper->nb_dle = 1;
-		wtaper->left = taper->tape_length;
+		//		wtaper->nb_dle = 1;
+		//		wtaper->left = taper->tape_length;
 	    }
 
 	    taper->nb_wait_reply++;
@@ -2044,18 +2039,28 @@ start_some_dumps(
 			  sp->datestamp);
 		job->do_port_write = FALSE;
 	    }
-
 	    wtaper->ready = FALSE;
+	    sdmsg = "sp-taper";
 	    sp->disk->host->start_t = now + HOST_DELAY;
 
 	    state_changed = TRUE;
 	}
     }
-    if (state_changed) {
-	short_dump_state("start_some_dumps-state-changed");
+    {
+      char tbuf[80];
+      tbuf[0] = '\0';
+      char *cmsg;
+      if (sdmsg) {
+	strlcpy(tbuf, sdmsg, sizeof(tbuf));
+      }
+      if (state_changed)
+	cmsg = "state changed";
+      else
+	cmsg = "no state change";
+      strlcat(tbuf, cmsg, sizeof(tbuf));
+      short_dump_state(module, tbuf);
     }
 }
-
 
 /*
  * This gets called when a dumper is delayed for some reason.  It may
@@ -2199,8 +2204,7 @@ continue_port_dumps(void)
 	    (void)h; /* Quiet lint */
 	}
 	/* find more space */
-	h = find_diskspace(sp->est_size - sp->act_size,
-			   &active_dumpers, h[i]);
+	h = find_diskspace(sp->est_size - sp->act_size, h[i]);
 	if( h ) {
 	    for (dumper = dmptable; dumper < dmptable + inparallel &&
 				    (!dumper->job || dumper->job->sched != sp);
@@ -2261,44 +2265,65 @@ static int
 all_tapeq_empty(void)
 {
     taper_t *taper;
+    wtaper_t *wtaper;
 
     for (taper = tapetable; taper < tapetable+nb_storage ; taper++) {
-	if (!empty(taper->tapeq))
+      if (!taper->down) {
+	if (!empty(taper->tapeq) || taper->vaultqss != NULL)
+	  return 0;
+	for (wtaper = taper->wtapetable; wtaper < taper->wtapetable + taper->nb_worker; wtaper++) {
+	  if (!empty(wtaper->vaultqs.vaultq)) {
 	    return 0;
+	  }
+	}
+      }
     }
     return 1;
+}
+
+/* Are all queues empty? */
+static gboolean all_queues_empty(void)
+{
+  static schedlist_t *allqs[] = {&runq, &directq, &roomq};
+  static char *qnames[] = {"run", "direct", "room"};
+  static char *fname = "all_queues_empty";
+  int i;
+
+  for (i = 0; i < sizeof(allqs)/sizeof(allqs[0]); i += 1) {
+    if (!empty(*allqs[i])) {
+      g_debug("%s: queue %s not empty", fname, qnames[i]);
+      return FALSE;
+    }
+  }
+  if (all_tapeq_empty()) {
+    g_debug("%s: all tape queues empty", fname);
+  } else {
+    return FALSE;
+  }
+  return TRUE;
 }
 
 /* Have we finished everything we had planned on doing? */
 static gboolean is_all_work_done(int line)
 {
   gboolean done = FALSE;
-  schedlist_t *allqs[] = {&runq, &directq, &roomq, NULL};
   schedlist_t **qp;
   dumper_t *dumper;
   static char *fname = "is_all_work_done";
 
-  for (qp = allqs; *qp; qp += 1) {
-    if (!empty(**qp)) {
-      g_debug("%s: %d: queue %d not empty", fname, line, (int)(qp - allqs));
-      return FALSE;
+  if (all_queues_empty()) {
+    for (dumper = dmptable; dumper < (dmptable+inparallel); dumper++) {
+      if (dumper->busy) {
+	g_debug("%s: %d: dumper %d busy", fname, line, (int)(dumper - dmptable));
+	return FALSE;
+      }
     }
-  }
-  g_debug("%s: %d: all queues empty", fname, line);
+    g_debug("%s: %d: no dumpers busy", fname, line);
 
-  for (dumper = dmptable; dumper < (dmptable+inparallel); dumper++) {
-    if (dumper->busy) {
-      g_debug("%s: %d: dumper %d busy", fname, line, (int)(dumper - dmptable));
-      return FALSE;
+    if (no_taper_active()) {
+      done = TRUE;
+      g_debug("%s: %d: no taper active and all queues empty", fname, line);
     }
-  }
-  g_debug("%s: %d: no dumpers busy", fname, line);
-
-  if (no_taper_active() && all_tapeq_empty()) {
-    done = TRUE;
-    g_debug("%s: %d: no taper active and all tape queues empty", fname, line);
-  } else {
-    g_debug("%s: %d: taper active or queue not empty", fname, line);
   }
   return done;
 }
@@ -2366,6 +2391,7 @@ handle_taper_error(
     }
     /* Should we fail this schedule */
     if (fail_sched) {
+      remove_sched(&taper->tapeq, sp);
       free_sched(sp);
     }
     /* Are we giving up on this taper? */
@@ -2393,13 +2419,13 @@ handle_taper_result(
     int      i;
     off_t    partsize;
     gboolean check_for_done = FALSE;
-
+    static char *module = "handle_taper_result";
     assert(cookie != NULL);
     taper = cookie;
 
     do {
 
-	short_dump_state("handle_taper_result-do-loop");
+      short_dump_state(module, "do-loop");
 	sp = NULL;
 	dp = NULL;
 	job = NULL;
@@ -2411,7 +2437,7 @@ handle_taper_result(
 
 	switch(cmd) {
 
-	case TAPER_OK:
+	case TAPER_OK:		/* TAPER_OK <worker> <take_scribe> */
 	    if(result_argc != 3) {
 		error(_("error: [taper FAILED result_argc != 3: %d"), result_argc);
 		/*NOTREACHED*/
@@ -2425,8 +2451,8 @@ handle_taper_result(
 		}
 	    }
 	    assert(wtaper != NULL);
-	    wtaper->left = 0;
-	    wtaper->nb_dle = 0;
+	    taper->left = taper->tape_length;
+	    taper->nb_dle = 0;
 	    wtaper->job = NULL;
 	    wtaper->state &= ~TAPER_STATE_INIT;
 	    wtaper->state |= TAPER_STATE_RESERVATION;
@@ -2469,7 +2495,7 @@ handle_taper_result(
 		taper->sent_first_write = NULL;
 	    }
 
-	    wtaper->nb_dle--;
+	    taper->nb_dle -= 1;
 	    wtaper->result = cmd;
 	    if (job->dumper && !dp->dataport_list && !dp->shm_name) {
 		job->dumper->result = FAILED;
@@ -2485,11 +2511,9 @@ handle_taper_result(
 		        sp->level, wtaper->tape_error);
 	    } else if (g_str_equal(result_argv[4], "TAPE-ERROR") ||
 		g_str_equal(result_argv[4], "TAPE-CONFIG")) {
-		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
 		g_free(wtaper->tape_error);
 		wtaper->tape_error = g_strdup(result_argv[6]);
 	    } else if (!g_str_equal(result_argv[4], "TAPE-GOOD")) {
-		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
 		g_free(wtaper->tape_error);
 		wtaper->tape_error = g_strdup(_("Taper protocol error"));
 		log_add(L_FAIL, _("%s %s %s %d [%s]"),
@@ -2561,14 +2585,12 @@ handle_taper_result(
 	    }
 	    if (g_str_equal(result_argv[4], "TAPE-ERROR") ||
 		g_str_equal(result_argv[4], "TAPE-CONFIG")) {
-		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
 		g_free(wtaper->tape_error);
 		wtaper->tape_error = g_strdup(result_argv[8]);
 		wtaper->result = FAILED;
 		amfree(qname);
 		break;
 	    } else if (!g_str_equal(result_argv[4], "TAPE-GOOD")) {
-		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
 		g_free(wtaper->tape_error);
 		wtaper->tape_error = g_strdup(_("Taper protocol error"));
 		wtaper->result = FAILED;
@@ -2603,6 +2625,7 @@ handle_taper_result(
 	    char *label = result_argv[3];
 	    job = serial2job(result_argv[2]);
 	    sp = job->sched;
+	    off_t kb_this_write;
 	    wtaper = wtaper_from_name(taper, result_argv[1]);
 	    assert(wtaper == job->wtaper);
 
@@ -2630,9 +2653,10 @@ handle_taper_result(
 		wtaper->dst_labels = g_slist_append(wtaper->dst_labels, g_strdup(label));
 	    }
 
-	    wtaper->written += OFF_T_ATOI(result_argv[5]);
-	    if (wtaper->written > sp->act_size)
-		sp->act_size = wtaper->written;
+	    kb_this_write = OFF_T_ATOI(result_argv[5]);
+	    taper->written += kb_this_write;
+	    if (kb_this_write > sp->act_size)
+		sp->act_size = kb_this_write;
 
 	    partsize = 0;
 	    s = strstr(result_argv[6], " kb ");
@@ -2646,7 +2670,7 @@ handle_taper_result(
 		    partsize = OFF_T_ATOI(s)/1024;
 		}
 	    }
-	    wtaper->left -= partsize;
+	    taper->left -= partsize;
 	  }
             break;
 
@@ -2661,11 +2685,10 @@ handle_taper_result(
 	    wtaper = wtaper_from_name(taper, result_argv[1]);
 	    assert(wtaper == job->wtaper);
 
-	    wtaper->left = 0;
+	    //	    wtaper->left = 0;
 	    if (wtaper->state & TAPER_STATE_DONE) {
 		taper_cmd(taper, wtaper, NO_NEW_TAPE, job->sched, "taper found no tape", 0, NULL);
 	    } else {
-		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
 		wtaper->state |= TAPER_STATE_TAPE_REQUESTED;
 
 		start_some_dumps(&runq);
@@ -2686,7 +2709,6 @@ handle_taper_result(
             }
 
 	    add_label_in_use(result_argv[3]);
-	    nb_sent_new_tape--;
 	    taper->nb_scan_volume--;
 
 	    job = serial2job(result_argv[2]);
@@ -2697,8 +2719,8 @@ handle_taper_result(
 
             /* Update our tape counter and reset taper->left */
 	    taper->current_tape++;
-	    wtaper->nb_dle = 1;
-	    wtaper->left = taper->tape_length;
+	    taper->nb_dle = 1;
+	    taper->left = taper->tape_length;
 	    wtaper->state &= ~TAPER_STATE_WAIT_NEW_TAPE;
 	    wtaper->state |= TAPER_STATE_TAPE_STARTED;
 	    wtaper->state |= TAPER_STATE_RESERVATION;
@@ -2732,7 +2754,6 @@ handle_taper_result(
                       result_argc);
 		/*NOTREACHED*/
             }
-	    nb_sent_new_tape--;
 	    taper->nb_scan_volume--;
 
 	    job = serial2job(result_argv[2]);
@@ -2824,7 +2845,7 @@ handle_taper_result(
 	    amfree(wtaper->dst_labels_str);
 	    slist_free_full(wtaper->dst_labels, g_free);
 	    wtaper->dst_labels = NULL;
-	    wtaper->written = 0;
+	    //	    wtaper->written = 0;
 	    wtaper->state |= TAPER_STATE_DUMP_TO_TAPE;
 
 	    if (dp->host->pre_script == 0) {
@@ -2980,7 +3001,7 @@ handle_taper_result(
 	}
 
 	if (wtaper && job && job->sched && wtaper->result != LAST_TOK) {
-	    if (wtaper->nb_dle >= taper->max_dle_by_volume) {
+	    if (taper->nb_dle >= taper->max_dle_by_volume) {
 		taper->nb_wait_reply++;
 		wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
 		taper_cmd(taper, wtaper, CLOSE_VOLUME, job->sched, NULL, 0, NULL);
@@ -3000,7 +3021,6 @@ handle_taper_result(
 		g_critical("Invalid job->sched->action %s %s %d", job->sched->disk->host->hostname, job->sched->disk->name, job->sched->action);
 	    }
 	}
-
     } while(areads_dataready(taper->fd));
     start_some_dumps(&runq);
     start_a_flush();
@@ -3164,6 +3184,7 @@ file_taper_result(
     taper_t  *taper  = wtaper->taper;
     disk_t   *dp;
     char    *qname = quote_string(sp->disk->name);
+    int delete_sched = 0;
 
     sp->taper_attempted += 1;
     dp = sp->disk;
@@ -3176,8 +3197,6 @@ file_taper_result(
 			  sp->level);
     }
 
-    job->wtaper = NULL;
-
     if (wtaper->input_error) {
 	g_printf("driver: taper failed %s %s: %s\n",
 		   dp->host->hostname, qname, wtaper->input_error);
@@ -3185,8 +3204,7 @@ file_taper_result(
 	    if (sp->taper_attempted >= dp->retry_dump) {
 		g_printf("driver: taper failed %s %s, too many taper retry after holding disk error\n",
 		   dp->host->hostname, qname);
-		free_sched(sp);
-		sp = NULL;
+		delete_sched = __LINE__;
 	    } else {
 		log_add(L_INFO, _("%s %s %s %d [Will retry dump because of holding disk error: %s]"),
 			dp->host->hostname, qname, sp->datestamp,
@@ -3199,13 +3217,11 @@ file_taper_result(
 		    sp->action = ACTION_DUMP_TO_TAPE;
 		    headqueue_sched(&directq, sp);
 		} else {
-		    free_sched(sp);
-		    sp = NULL;
+		  delete_sched = __LINE__;
 		}
 	    }
 	} else {
-	    free_sched(sp);
-	    sp = NULL;
+	  delete_sched = __LINE__;
 	}
     } else if (wtaper->tape_error) {
 	g_printf("driver: taper failed %s %s with tape error: %s\n",
@@ -3213,13 +3229,18 @@ file_taper_result(
 	if (sp->taper_attempted >= dp->retry_dump) {
 	    g_printf("driver: taper failed %s %s, too many taper retry\n",
 		   dp->host->hostname, qname);
-	    free_sched(sp);
-	    sp = NULL;
+	    delete_sched = __LINE__;
 	} else {
 	    char *wall_time = walltime_str(curclock());
 	    g_printf("driver: taper will retry %s %s\n",
 		   dp->host->hostname, qname);
 	    /* Re-insert into taper queue. */
+	    {
+	      static gboolean debugwait = 1;
+	      while (debugwait) {
+		sleep(60);
+	      }
+	    }
 	    sp->action = ACTION_FLUSH;
 	    g_printf("driver: requeue write time %s %s %s %s %s\n", wall_time, sp->disk->host->hostname, qname, sp->datestamp, wtaper->taper->storage_name);
 	    headqueue_sched(&wtaper->taper->tapeq, sp);
@@ -3292,6 +3313,10 @@ file_taper_result(
     wtaper->state &= ~TAPER_STATE_FILE_TO_TAPE;
     if (!(wtaper->state & (TAPER_STATE_WAIT_CLOSED_VOLUME|TAPER_STATE_WAIT_CLOSED_SOURCE_VOLUME))) {
 	wtaper->state |= TAPER_STATE_IDLE;
+    }
+    if (delete_sched) {
+      remove_sched(&taper->tapeq, sp);
+      free_sched(sp);
     }
     free_serial_job(job);
     free_job(job);
@@ -3681,6 +3706,7 @@ handle_dumper_result(
     int result_argc;
     char *qname;
     char **result_argv;
+    static char *module = "handle_dumper_result";
 
     assert(dumper != NULL);
     job = dumper->job;
@@ -3691,7 +3717,7 @@ handle_dumper_result(
 
     do {
 
-	short_dump_state("handle_dumper_result-do-loop");
+      short_dump_state(module, "do-loop");
 
 	cmd = getresult(dumper->fd, 1, &result_argc, &result_argv);
 
@@ -3913,11 +3939,12 @@ handle_chunker_result(
     int dummy;
     int activehd;
     char *qname;
+    static char *module = "handle_chunker_result";
 
     assert(chunker != NULL);
 
     do {
-	short_dump_state("handle_chunker_result-do-loop");
+      short_dump_state(module, "do-loop");
 
 	job = NULL;
 	sp = NULL;
@@ -4056,7 +4083,6 @@ handle_chunker_result(
 		if (sp->est_size < sp->act_size + 2*DISK_BLOCK_KB)
 		    sp->est_size += 2 * DISK_BLOCK_KB;
 		h = find_diskspace(sp->est_size - sp->act_size,
-				   &dummy,
 				   h[activehd-1]);
 		if( !h ) {
 		    /* No diskspace available. The reason for this will be
@@ -4728,14 +4754,18 @@ read_schedule(
     start_degraded_mode(&runq);
     run_server_global_scripts(EXECUTE_ON_PRE_BACKUP, get_config_name(),
 			      driver_timestamp);
-    if (empty(runq)) force_flush = 1;
+    if (empty(runq)) {
+      /* If we don't have anything to do,
+       *  set a flag to cause the event_loop to quit.
+       */
+      if (all_queues_empty()) {
+	flag_event_loop_done(__LINE__);
+      }
+      force_flush = 1;
+    }
     start_some_dumps(&runq);
     start_a_flush();
     start_a_vault();
-    /* If we've finished, set a flag to cause the event_loop to quit. */
-    if (is_all_work_done(__LINE__)) {
-      flag_event_loop_done(__LINE__);
-    }
 }
 
 static void
@@ -5036,6 +5066,19 @@ deallocate_bandwidth(
 
 /* ------------ */
 static off_t
+holding_allocated_space(void)
+{
+    holdalloc_t *ha;
+    off_t total_allocated;
+
+    total_allocated = (off_t)0;
+    for(ha = holdalloc; ha != NULL; ha = ha->next) {
+	total_allocated += ha->allocated_space;
+    }
+    return total_allocated;
+}
+
+static off_t
 holding_free_space(void)
 {
     holdalloc_t *ha;
@@ -5063,7 +5106,6 @@ holding_free_space(void)
 static assignedhd_t **
 find_diskspace(
     off_t		size,
-    int *		cur_idle,
     assignedhd_t *	pref)
 {
     assignedhd_t **result = NULL;
@@ -5072,8 +5114,6 @@ find_diskspace(
     int j, minj;
     char *used;
     off_t halloc, dalloc, hfree, dfree;
-
-    (void)cur_idle;	/* Quiet unused parameter warning */
 
     if (holdalloc == NULL) {
 	/* no holding disk in use */
@@ -5088,7 +5128,7 @@ find_diskspace(
 		   (long long)size);
 
     used = g_malloc(sizeof(*used) * num_holdalloc);/*disks used during this run*/
-    memset( used, 0, (size_t)num_holdalloc );
+    memset( used, 0, sizeof(*used) * (size_t)num_holdalloc );
     result = g_malloc(sizeof(assignedhd_t *) * (num_holdalloc + 1));
     result[0] = NULL;
 
@@ -5469,7 +5509,7 @@ queue_length(
    Add new fields at the end.
 */
 static void
-short_dump_state(const char *suffix)
+short_dump_state(const char *module, const char *suffix)
 {
     int      i, nidle;
     char    *wall_time;
@@ -5532,7 +5572,7 @@ short_dump_state(const char *suffix)
     g_printf(_(" roomq: %d"), queue_length(&roomq));
     g_printf(_(" wakeup: %d"), (int)sleep_time);
     g_printf(_(" driver-idle: %s\n"), _(idle_strings[idle_reason]));
-    g_printf(_(" sequence: %s\n"), suffix);
+    g_printf(_(" sequence: %s:%s\n"), module, suffix);
     interface_state(wall_time);
     holdingdisk_state(wall_time);
     fflush(stdout);
@@ -5558,7 +5598,7 @@ tape_action(
     off_t sched_size;
     off_t dump_to_disk_size;
     int   dump_to_disk_terminated;
-    int   nb_wtaper_active = nb_sent_new_tape;
+    int   nb_wtaper_active = 0;
     int   nb_wtaper_flushing = 0;
     int   nb_wtaper_waiting = 0;
     int   nb_wtaper_init = 0;
@@ -5570,6 +5610,8 @@ tape_action(
     gboolean taperflush_criteria;
     gboolean flush_criteria;
     GSList *vsl;
+    gboolean will_need_more_tape = FALSE;
+    off_t holding_used = holding_allocated_space()/* + holding_space_in_use() */; 
 
     driver_debug(2, "tape_action: ENTER %s\n", wtaper->name);
     dumpers_taper_size = 0;
@@ -5634,8 +5676,7 @@ tape_action(
 	    nb_wtaper_waiting++;
 	}
 	if (wtaper1->state & TAPER_STATE_RESERVATION &&
-	    wtaper1->state & TAPER_STATE_IDLE &&
-	    wtaper->nb_dle == 0) {
+	    wtaper1->state & TAPER_STATE_IDLE) {
 	    nb_wtaper_init++;
 	}
     }
@@ -5648,7 +5689,7 @@ tape_action(
 	 wtaper1 < taper->wtapetable + taper->nb_worker;
 	 wtaper1++) {
 	if (wtaper1->state & TAPER_STATE_TAPE_STARTED) {
-	    dle_free += (taper->max_dle_by_volume - wtaper1->nb_dle);
+	    dle_free += (taper->max_dle_by_volume - taper->nb_dle);
 	}
 	    if (wtaper1->job && wtaper1->job->sched) {
 		off_t data_to_go;
@@ -5658,28 +5699,28 @@ tape_action(
 		} else {
 		    t_size = wtaper1->job->sched->act_size;
 		}
-		data_to_go =  t_size - wtaper1->written;
-		if (data_to_go > wtaper1->left) {
+		data_to_go =  t_size - taper->written;
+		if (data_to_go > taper->left) {
 		    if (wtaper1->state & TAPER_STATE_TAPE_STARTED) {
-			if (taper->max_dle_by_volume - wtaper1->nb_dle > 0) {
-			    data_free -= data_to_go - wtaper1->left;
-			    data_lost += wtaper1->written + wtaper1->left;
+			if (taper->max_dle_by_volume - taper->nb_dle > 0) {
+			    data_free -= data_to_go - taper->left;
+			    data_lost += taper->written + taper->left;
 			}
 		    } else {
 			data_free -= data_to_go;
-			data_lost += wtaper1->written;
+			data_lost += taper->written;
 		    }
 		} else {
 		    if (!(wtaper1->state & TAPER_STATE_TAPE_STARTED)) {
 			data_free -= data_to_go;
 		    } else {
-			if (taper->max_dle_by_volume - wtaper1->nb_dle > 0) {
-			    data_free += wtaper1->left - data_to_go;
+			if (taper->max_dle_by_volume - taper->nb_dle > 0) {
+			    data_free += taper->left - data_to_go;
 			}
 		    }
 		}
 	    } else if (wtaper1->state & TAPER_STATE_TAPE_STARTED) {
-		data_free += wtaper1->left;
+		data_free += taper->left;
 	    }
     }
 
@@ -5723,6 +5764,7 @@ tape_action(
 
     dump_to_disk_size = dumpers_chunker_size + runq_size;
     driver_debug(2, _("dump_to_disk_size: %lld\n"), (long long)dump_to_disk_size);
+    driver_debug(2, _("holding_used: %lld\n"), (long long)holding_used);
 
     dump_to_disk_terminated = schedule_done && dump_to_disk_size == 0;
 
@@ -5739,10 +5781,11 @@ tape_action(
 			   (new_dle > 0) ||
 			   ((data_lost > ( taper->tape_length - tapeq_size)) &&
 			    (dump_to_disk_terminated)));
-    flush_criteria = (taper->flush_threshold_dumped < tapeq_size &&
+    flush_criteria = ((taper->flush_threshold_dumped < tapeq_size &&
 		      taper->flush_threshold_scheduled < sched_size &&
-		      (new_data > 0 || force_flush == 1 || dump_to_disk_terminated)) ||
-		     taperflush_criteria;
+		      new_data > 0)
+		      || (force_flush == 1 || dump_to_disk_terminated ||
+			  taperflush_criteria));
 
     driver_debug(2, "action_flush %d\n", action_flush);
     driver_debug(2, "taperflush %lld\n", (long long)taper->taperflush);
@@ -5761,10 +5804,9 @@ tape_action(
     driver_debug(2, "nb_wtaper_active %d\n", nb_wtaper_active);
     driver_debug(2, "last_started_wtaper %p %p %s\n", taper->last_started_wtaper, wtaper, wtaper->name);
     driver_debug(2, "taper->sent_first_write %p %p %s\n", taper->sent_first_write, wtaper, wtaper->name);
-    driver_debug(2, "wtaper->state %d\n", wtaper->state);
+    driver_debug(2, "wtaper->state %s\n", wtaper_state_to_string(wtaper));
     driver_debug(2, "taper->vaultqss %p\n", taper->vaultqss);
 
-    driver_debug(2, "%d  R%d W%d D%d I%d\n", wtaper->state, TAPER_STATE_TAPE_REQUESTED, TAPER_STATE_WAIT_FOR_TAPE, TAPER_STATE_DUMP_TO_TAPE, TAPER_STATE_IDLE);
     // Changing conditionals can produce a driver hang, take care.
     //
     // when to start writing to a new tape
@@ -5807,6 +5849,9 @@ tape_action(
 	   ) {
 	    driver_debug(2, "tape_action: TAPER_STATE_WAIT_FOR_TAPE return TAPE_ACTION_NEW_TAPE\n");
 	    result |= TAPE_ACTION_NEW_TAPE;
+	} else if (wtaper->state & TAPER_STATE_VAULT_TO_TAPE) {
+	    driver_debug(2, "tape_action: TAPER_STATE_WAIT_FOR_TAPE return TAPE_ACTION_NEW_TAPE (for vault)\n");
+	    result |= TAPE_ACTION_NEW_TAPE;
 	// when to stop using new tape
 	} else if ((taper->taperflush >= tapeq_size &&		// taperflush criteria
 	           (force_flush == 1 ||				//  if force_flush
@@ -5820,7 +5865,7 @@ tape_action(
 		          taper->runtapes);
 		    driver_debug(2, "tape_action: TAPER_STATE_WAIT_FOR_TAPE return TAPE_ACTION_NO_NEW_TAPE\n");
 		    result |= TAPE_ACTION_NO_NEW_TAPE;
-		} else if (dumpers_chunker_size <= 0) {
+		} else if (!flush_criteria) {
 		    *why_no_new_tape = _("taperflush criteria not met");
 		    driver_debug(2, "tape_action: TAPER_STATE_WAIT_FOR_TAPE return TAPE_ACTION_NO_NEW_TAPE\n");
 		    result |= TAPE_ACTION_NO_NEW_TAPE;
@@ -5866,8 +5911,6 @@ tape_action(
 	} else {
 	    driver_debug(2, "tape_action: TAPER_STATE_DEFAULT return NO_ACTION %d\n", wtaper->state);
 	}
-    } else {
-	driver_debug(2, "tape_action: NO ACTION %d\n", wtaper->state);
     }
     return result;
 }
@@ -5895,7 +5938,7 @@ no_taper_flushing(void)
    Use a static buffer to build the string, returning its address.
    NOT thread safe.
 */
-static char *wtaper_state(wtaper_t *wtaper)
+static char *wtaper_state_to_string(wtaper_t *wtaper)
 {
   struct taper_state_strings_s {
     TaperState state;
@@ -5978,7 +6021,7 @@ no_taper_active(void)
       | TAPER_STATE_VAULT_TO_TAPE;
 
     for (taper = tapetable; taper < tapetable + nb_storage; taper++) {
-	if (taper->storage_name && !taper->degraded_mode) {
+	if (taper->storage_name && !taper->down) {
 	    if (taper->nb_wait_reply) {
 	        g_debug("%s: taper %d: nb_wait_reply %d", fname,
 			(int)(taper - tapetable), taper->nb_wait_reply);
@@ -5989,7 +6032,7 @@ no_taper_active(void)
 		wtaper++) {
 	      g_debug("%s: taper %d.%d: %s", fname,
 		      (int)(taper - tapetable), (int)(wtaper - taper->wtapetable),
-		      wtaper_state(wtaper));
+		      wtaper_state_to_string(wtaper));
 
 	      if (wtaper->state & taper_active) {
 		return FALSE;
@@ -6239,6 +6282,9 @@ remove_label_in_use(
     char *label)
 {
     int i;
+    if (label == NULL) {
+      return;
+    }
     for (i=0; i <= nb_label_in_use; i++) {
 	if (label_in_use_array[i] &&
 	    strcmp(label_in_use_array[i], label) == 0) {
@@ -6253,4 +6299,3 @@ remove_label_in_use(
 	}
     }
 }
-
