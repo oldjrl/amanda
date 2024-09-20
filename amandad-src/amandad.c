@@ -1547,7 +1547,6 @@ process_readnetfd(
     }
 
     if (security_stream_write(dh->netfd, as->databuf, (size_t)n) < 0) {
-        abort();
 	/* stream has croaked */
 	event_release(dh->ev_read);
 	dh->ev_read = NULL;
