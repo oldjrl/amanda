@@ -402,7 +402,7 @@ localhost    diskname2   0    1050    1050    --     0:00 999999.9   0:00 999999
 (brought to you by Amanda version 4.0.0alpha.git.00388ecf)
 END_REPORT
 
-check_amreport($report, $timestamp, "amreport first amdump");
+check_amreport($report, $timestamp, "amreport first amdump", 1);
 
 # amstatus
 

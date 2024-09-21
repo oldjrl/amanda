@@ -431,6 +431,7 @@ USAGE BY TAPE:
 NOTES:
   planner: Adding new disk localhost:diskname2.
   planner: tapecycle (2) <= runspercycle (10)
+  planner: tapecycle (2) <= runspercycle (10)
   taper: Slot 1 without label can be labeled
   taper: Slot 1 without label can be labeled
   taper: tape STO-1-00001 kb 1050 fm 1 [OK]

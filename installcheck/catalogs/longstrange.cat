@@ -1071,7 +1071,7 @@ USAGE BY TAPE:
 
 STRANGE DUMP DETAILS:
 
-/--  bsdfw.slikon.local / lev 0 STRANGE
+bsdfw.slikon.local / lev 0 STRANGE
 sendbackup: info BACKUP=APPLICATION
 sendbackup: info APPLICATION=amgtar
 sendbackup: info RECOVER_CMD=/usr/bin/gzip -dc |amgtar -f... -
@@ -1177,9 +1177,7 @@ sendbackup: info end
 | x
 | x
 | x
-\\--------
 913 lines follow, see the corresponding log.* file for the complete list
-\\--------
 
 
 DUMP SUMMARY:

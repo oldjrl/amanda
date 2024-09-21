@@ -81,7 +81,7 @@ USAGE BY TAPE:
 
 FAILED DUMP DETAILS:
 
-/--  ns-new.slikon.local /opt/var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134405000.debug]
+ns-new.slikon.local /opt/var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134405000.debug]
 sendbackup: info BACKUP=APPLICATION
 sendbackup: info APPLICATION=amgtar
 sendbackup: info RECOVER_CMD=/usr/bin/gzip -dc |amgtar -f... -
@@ -93,9 +93,8 @@ sendbackup: info end
 sendbackup: error [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134405000.debug]
 sendbackup: size 921710
 sendbackup: end
-\\--------
 
-/--  ns-new.slikon.local /opt/var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134714000.debug]
+ns-new.slikon.local /opt/var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134714000.debug]
 sendbackup: info BACKUP=APPLICATION
 sendbackup: info APPLICATION=amgtar
 sendbackup: info RECOVER_CMD=/usr/bin/gzip -dc |amgtar -f... -
@@ -107,7 +106,6 @@ sendbackup: info end
 sendbackup: error [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134714000.debug]
 sendbackup: size 921730
 sendbackup: end
-\\--------
 
 
 NOTES:

@@ -224,7 +224,7 @@ sub setup_backmeup {
     };
 
     rmtree($diskname);
-    mkpath($diskname) or die("Could not create $name");
+    mkpath($diskname) or die("Could not create $diskname");
 
     # pick a file for 'random' data -- /dev/urandom or, failing that,
     # Amanda's ChangeLog.
@@ -555,79 +555,83 @@ bail:
     }
 }
 
+sub sort_sortables
+{
+    my $unsorted_ref = shift;
+    my @new_lines;
+    my $sort_section = 0;
+    my @section;
+    my $sortable_sections = qr/^((  Label)|(NOTES:)|(FAILED DUMP DETAILS:)|(STRANGE DUMP DETAILS:))/;
+
+    foreach my $line (@$unsorted_ref) {
+	if ($sort_section) {
+	    if ($line eq '') {
+		push @new_lines, sort @section;
+		push @new_lines, $line;
+		@section = ();
+		$sort_section = 0;
+	    } else {
+		push @section, $line;
+	    }
+	} else {
+	    push @new_lines, $line;
+	    if ($line =~ /$sortable_sections/) {
+		$sort_section = 1;
+	    }
+	}
+    }
+    return @new_lines;
+}
+
 sub diag_diff
 {
-    my ( $a, $b, $text ) = @_;
-
-# line betwwen '  /--' and '  \--------' can be in varying order
+    my ( $got, $expect, $text, $sort ) = @_;
 
     my $fail = 0;
     my $optional_regex = qr/ -\\\?$/;
     my $optional;
 
-    my @a = split /\n/, $a;
-    my @b = split /\n/, $b;
+    my @got = split /\n/, $got;
+    my @expect = split /\n/, $expect;
 
-    while (defined(my $la = shift @a)) {
-	my $lb = shift @b;
-	if ($lb =~ /^  \/-- /) {
-	    my @ax;
-	    my @bx;
-	    push @ax, $la;
-	    push @bx, $lb;
-	    while (defined($lb = shift @b) && $lb !~ /  \\\\--------/) {
-		push @bx, $lb;
-	    }
-	    while (defined($la = shift @a) && $la !~ /  \\--------/) {
-		push @ax, $la;
-	    }
-
-	    @ax = sort @ax;
-	    @bx = sort @bx;
-
-	    while (defined($optional = shift @bx)) {
-		my $xa = shift @ax;
-		my $xb;
-		($xb = $optional) =~ s/$optional_regex//;
-		# Is this line optional?
-		$optional = undef if ($optional eq $xb);
-		while (defined($xa) && $xa !~ /^$xb$/ and $optional){
-		    if (defined($optional = shift @bx)) {
-			($xb = $optional) =~ s/$optional_regex//;
-			$optional = undef if ($optional eq $xb);
-		    } else {
-			$xb = undef;
-		    }
-		}
-		if (!(defined($xa) && defined($xb) && $xa =~ /^$xb$/)) {
-		    $fail = 1;
-		    diag("-$xa") if (defined($xa));
-		    diag("+$xb") if (defined($xb));
-		}
-	    }
-	    next;
-	}
-	$optional = $lb;
-	($lb = $optional) =~ s/$optional_regex//;
-	$optional = undef if ($optional eq $lb);
-
-	while ($la !~ /^$lb$/ and $optional) {
-	    if (defined($optional = shift @b)) {
-		($lb = $optional) =~ s/$optional_regex//;
-		$optional = undef if ($optional eq $lb);
-	    } else {
-		$lb = undef;
-	    }
-	}
-	if (!(defined($la) && defined($lb) && $la =~ /^$lb$/)) {
-	    $fail = 1;
-	    diag("-$la");
-	    diag("+$lb");
-	}
+    if ($sort) {
+	@got = sort_sortables(\@got);
+	@expect = sort_sortables(\@expect);
     }
-    foreach my $lb (@b) {
+
+    my $got_i = 0;
+    my $expect_i = 0;
+    while ( $got_i <= $#got) {
+	my $g = $got[$got_i];
+	my $e = $expect[$expect_i];
+
+	if (defined($e)) {
+	    $optional = $e;
+	    ($e = $optional) =~ s/$optional_regex//;
+	    $optional = undef if ($optional eq $e);
+
+	    while ($g !~ /^$e$/ and $optional) {
+		$expect_i += 1;
+		if (defined($optional = $expect[$expect_i])) {
+		    ($e = $optional) =~ s/$optional_regex//;
+		    $optional = undef if ($optional eq $e);
+		} else {
+		    $e = undef;
+		}
+	    }
+	}
+	if (!(defined($g) && defined($e) && $g =~ /^$e$/)) {
+	    $fail = 1;
+	    diag("-$g") if (defined($g));
+	    diag("+$e") if (defined($e));
+	}
+	$got_i += 1;
+	$expect_i += 1;
+    }
+    while ( $expect_i <= $#expect) {
 	$fail = 1;
-	diag("+$lb");
+	diag("+$expect[$expect_i]");
+	$expect_i += 1;
     }
     ok(!$fail, "$text: match");
 
@@ -679,47 +683,8 @@ sub check_amreport
     run("amreport", 'TESTCONF');
     my @lines = split "\n", $Installcheck::Run::stdout;
 
-    if ($sorting) {
-	if ($skip_size) {
-	    @lines = grep { $_ !~ /^  sendbackup: size/ } @lines;
-	}
-	my @new_lines;
-	my $in_usage_by_tape = 0;
-	my $in_notes = 0;
-	my @notes;
-	my @usage_by_tapes;
-
-	foreach my $line (@lines) {
-	    if ($in_usage_by_tape) {
-		if ($line eq '') {
-		    push @new_lines, sort @usage_by_tapes;
-		    push @new_lines, $line;
-		    $in_usage_by_tape = 0;
-		} else {
-		    push @usage_by_tapes, $line;
-		}
-	    } elsif ($in_notes) {
-		if ($line eq '') {
-		    push @new_lines, sort @notes;
-		    push @new_lines, $line;
-		    $in_notes = 0;
-		} else {
-		    push @notes, $line;
-		}
-	    } else {
-		push @new_lines, $line;
-		if ($line =~ /^  Label/) {
-		    $in_usage_by_tape = 1;
-		} elsif ($line =~ /^NOTES:/) {
-		    $in_notes = 1;
-		}
-	    }
-	}
-	@lines = @new_lines;
-    } else {
-	if ($skip_size) {
-	    @lines = grep { $_ !~ /^  sendbackup: size/ } @lines;
-	}
+    if ($skip_size) {
+	@lines = grep { $_ !~ /^  sendbackup: size/ } @lines;
     }
 
     @newlines = ();
@@ -735,7 +700,7 @@ OUTER:	foreach my $line (@lines) {
     $got_report .= "\n";
 
 #    ok($got_report =~ $report, "$text: match") || diag_diff($got_report, $report, $text);
-    diag_diff($got_report, $report, $text);
+    diag_diff($got_report, $report, $text, $sorting);
 #diag("stdout::::${Installcheck::Run::stdout}::::\n");
 #diag("got_report::::${got_report}::::\n");
 #diag("report::::${report}::::\n");

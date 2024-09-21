@@ -289,8 +289,16 @@ sub planner_driver_pipeline {
 	my $dead = wait();
 	die("Error waiting: $!") if ($dead <= 0);
 	my $s = $? >> 8;
-	debug("planner finished with exit code $s") if $dead == $pl_pid;
-	debug("driver finished with exit code $s") if $dead == $dr_pid;
+	my $extra_text = "";
+	if ($? & 127) {
+	    $extra_text += " (signaled";
+	    if ($? & 128) {
+		$extra_text += ", core";
+	    }
+	    $extra_text += ")";
+	}
+	debug("planner finished with exit code $s$extra_text") if $dead == $pl_pid;
+	debug("driver finished with exit code $s$extra_text") if $dead == $dr_pid;
 	my $exit = WIFEXITED($?)? WEXITSTATUS($?) : 1;
 	$first_bad_exit = $exit if ($exit && !$first_bad_exit)
     }

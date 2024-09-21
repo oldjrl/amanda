@@ -348,7 +348,7 @@ Avg Tp Write Rate (k/s)      --         --         --
 
 
 FAILED DUMP DETAILS:
-  /-- localhost diskname2 lev 0 FAILED [exec $cwd/amcat-error-not-found: No such file or directory]
+  localhost diskname2 lev 0 FAILED [exec $cwd/amcat-error-not-found: No such file or directory]
   sendbackup: info BACKUP=APPLICATION
   sendbackup: info APPLICATION=amrandom
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
@@ -358,8 +358,7 @@ FAILED DUMP DETAILS:
   sendbackup: native-CRC 00000000:0
   sendbackup: client-CRC 00000000:0
   sendbackup: end
-  \\--------
-  /-- localhost diskname2 lev 0 FAILED [exec $cwd/amcat-error-not-found: No such file or directory]
+  localhost diskname2 lev 0 FAILED [exec $cwd/amcat-error-not-found: No such file or directory]
   sendbackup: info BACKUP=APPLICATION
   sendbackup: info APPLICATION=amrandom
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
@@ -369,7 +368,6 @@ FAILED DUMP DETAILS:
   sendbackup: native-CRC 00000000:0
   sendbackup: client-CRC 00000000:0
   sendbackup: end
-  \\--------
 
 
 NOTES:
@@ -387,7 +385,7 @@ localhost    diskname2   0                    --      PARTIAL
 (brought to you by Amanda version 4.0.0alpha.git.00388ecf)
 END_REPORT
 
-check_amreport($report, $timestamp, "amreport first amdump");
+check_amreport($report, $timestamp, "amreport first amdump", 1);
 
 # amstatus
 

@@ -771,6 +771,7 @@ NOTES:
   planner: Forcing level 1 of localhost:diskname2 as directed.
   planner: Last full dump of localhost:diskname2 on tape STO-1-00001 overwritten in 2 runs.
   planner: tapecycle (2) <= runspercycle (10)
+  planner: tapecycle (2) <= runspercycle (10)
   taper: Slot 1 with label STO-1-00001 is not reusable
   taper: Slot 1 without label can be labeled
   taper: Slot 2 without label can be labeled

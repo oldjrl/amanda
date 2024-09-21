@@ -391,7 +391,7 @@ USAGE BY TAPE:
 
 
 FAILED DUMP DETAILS:
-  /-- localhost diskname2 lev 0 FAILED [amcat-error-end: failure Y]
+  localhost diskname2 lev 0 FAILED [amcat-error-end: failure Y]
   sendbackup: info BACKUP=APPLICATION
   sendbackup: info APPLICATION=amrandom
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
@@ -401,8 +401,7 @@ FAILED DUMP DETAILS:
   sendbackup: native-CRC 7993153a:1075200
   sendbackup: client-CRC 107e725e:1075200
   sendbackup: end
-  \\--------
-  /-- localhost diskname2 lev 0 FAILED [amcat-error-end: failure Y]
+  localhost diskname2 lev 0 FAILED [amcat-error-end: failure Y]
   sendbackup: info BACKUP=APPLICATION
   sendbackup: info APPLICATION=amrandom
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
@@ -412,7 +411,6 @@ FAILED DUMP DETAILS:
   sendbackup: native-CRC 7993153a:1075200
   sendbackup: client-CRC 107e725e:1075200
   sendbackup: end
-  \\--------
 
 
 NOTES:
@@ -431,7 +429,7 @@ localhost    diskname2   0            1050    --      PARTIAL        0:00 999999
 (brought to you by Amanda version 4.0.0alpha.git.00388ecf)
 END_REPORT
 
-#check_amreport($report, $timestamp, "amreport first amdump");
+#check_amreport($report, $timestamp, "amreport first amdump", 1);
 
 # amstatus
 

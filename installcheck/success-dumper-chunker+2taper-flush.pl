@@ -55,7 +55,7 @@ if ($rest->{'error'}) {
    plan skip_all => "Can't start JSON Rest server: $rest->{'error'}: see " . Amanda::Debug::dbfn();
    exit 1;
 }
-plan tests => 84;
+plan tests => 85;
 
 my $reply;
 
@@ -126,8 +126,9 @@ is($reply->{'body'}->[0]->{'report'}->{'head'}->{'status'}, 'done' , 'status is 
 is($reply->{'body'}->[0]->{'report'}->{'head'}->{'org'}, 'DailySet1' , 'org is correct');
 is($reply->{'body'}->[0]->{'report'}->{'head'}->{'config_name'}, 'TESTCONF' , 'config_name is correct');
 is($reply->{'body'}->[0]->{'report'}->{'head'}->{'timestamp'}, $timestamp , 'timestamp is correct');
-is($reply->{'body'}->[0]->{'report'}->{'notes'}->[1], '  planner: Adding new disk localhost:diskname2.' , 'notes[1] is correct');
-ok(!exists $reply->{'body'}->[0]->{'report'}->{'notes'}->[2], 'no notes[2]');
+is($reply->{'body'}->[0]->{'report'}->{'notes'}->[1], '  planner: tapecycle (2) <= runspercycle (10)' , 'notes[1] is correct');
+is($reply->{'body'}->[0]->{'report'}->{'notes'}->[2], '  planner: Adding new disk localhost:diskname2.' , 'notes[2] is correct');
+ok(!exists $reply->{'body'}->[0]->{'report'}->{'notes'}->[3], 'no notes[3]');
 ok(!exists $reply->{'body'}->[0]->{'report'}->{'failure_summary'}, 'no failure_summary');
 ok(!exists $reply->{'body'}->[0]->{'report'}->{'usage_by_tape'}->[0], 'no usgae_by_tape');
 ok(!exists $reply->{'body'}->[0]->{'report'}->{'tapeinfo'}->{'storage'}->{'TESTCONF'}->{'use'}, 'use is not defined');
@@ -315,6 +316,7 @@ Avg Tp Write Rate (k/s)      --         --         --
 
 NOTES:
   planner: tapecycle (2) <= runspercycle (10)
+  planner: tapecycle (2) <= runspercycle (10)
   planner: Adding new disk localhost:diskname2.
 
 
@@ -327,7 +329,7 @@ localhost    diskname2   0    1050    1050    --     0:00 999999.9
 (brought to you by Amanda version 4.0.0alpha.git.00388ecf)
 END_REPORT
 
-check_amreport($report, $timestamp, "amreport first amdump");
+check_amreport($report, $timestamp, "amreport first amdump", 1);
 
 #amstatus
 

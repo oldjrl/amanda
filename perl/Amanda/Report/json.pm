@@ -713,16 +713,14 @@ sub output_details
 		    && $try->{dumper}->{status} eq 'fail') {
 
 		    push @failed_dump_details,
-    "/-- $hostname $qdisk lev $try->{dumper}->{level} FAILED [$try->{dumper}->{error}]",
-		      @{ $try->{dumper}->{errors} },
-		      "\\--------";
+    "$hostname $qdisk lev $try->{dumper}->{level} FAILED [$try->{dumper}->{error}]",
+		      @{ $try->{dumper}->{errors} };
 
 		    if ($try->{dumper}->{nb_errors} > 100) {
 			my $nb = $try->{dumper}->{nb_errors} - 100;
 
 			push @failed_dump_details,
-    "$nb lines follow, see the corresponding log.* file for the complete list",
-			  "\\--------";
+    "$nb lines follow, see the corresponding log.* file for the complete list";
 		    }
 		}
 
@@ -733,15 +731,13 @@ sub output_details
 		    && $try->{dumper}->{status} eq 'strange') {
 
 		    push @strange_dump_details,
-		      "/-- $hostname $qdisk lev $try->{dumper}->{level} STRANGE",
-		      @{ $try->{dumper}->{stranges} },
-		      "\\--------";
+		      "$hostname $qdisk lev $try->{dumper}->{level} STRANGE",
+		      @{ $try->{dumper}->{stranges} };
 
 		    if ($try->{dumper}->{nb_stranges} > 100) {
 			my $nb = $try->{dumper}->{nb_stranges} - 100;
 			push @strange_dump_details,
-    "$nb lines follow, see the corresponding log.* file for the complete list",
-			  "\\--------";
+    "$nb lines follow, see the corresponding log.* file for the complete list";
 		    }
 		}
 
