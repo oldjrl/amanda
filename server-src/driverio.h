@@ -61,6 +61,10 @@ typedef enum {
    TAPER_STATE_WAIT_CLOSED_VOLUME = (1 << 10),		// 1024
    TAPER_STATE_WAIT_CLOSED_SOURCE_VOLUME = ((unsigned int)1 << 11),	// 2048
    TAPER_STATE_VAULT_TO_TAPE   = (1 << 12), //  4096 Doing a VAULT-WRITE
+   TAPER_STATE_ACTIVE_XFER     = TAPER_STATE_DUMP_TO_TAPE
+				   | TAPER_STATE_FILE_TO_TAPE
+				   | TAPER_STATE_VAULT_TO_TAPE,
+
 } TaperState;
 
 typedef enum action_s {
@@ -157,6 +161,9 @@ typedef struct wtaper_s {
     gboolean    allow_take_scribe_from;
     vaultqs_t   vaultqs;		/* to vault from another storage */
     struct taper_s *taper;
+    cmd_t	cmd;		/* last command issued */
+    gboolean    wait_reply;	/* awaiting reply to last command */
+    gboolean	retryable;	/* last command is retryable */
 } wtaper_t;
 
 typedef struct taper_s {
@@ -165,7 +172,6 @@ typedef struct taper_s {
     pid_t           pid;
     int             fd;
     event_handle_t *ev_read;
-    int             nb_wait_reply;
     int             nb_worker;
     int             nb_scan_volume;
     off_t           tape_length;

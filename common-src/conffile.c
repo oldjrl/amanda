@@ -165,7 +165,7 @@ typedef enum {
     CONF_DEBUG_HOLDING,		CONF_DEBUG_PROTOCOL,	CONF_DEBUG_PLANNER,
     CONF_DEBUG_DRIVER,		CONF_DEBUG_DUMPER,	CONF_DEBUG_CHUNKER,
     CONF_DEBUG_TAPER,		CONF_DEBUG_SELFCHECK,	CONF_DEBUG_SENDSIZE,
-    CONF_DEBUG_SENDBACKUP,	CONF_DEBUG_RECOVERY,
+    CONF_DEBUG_SENDBACKUP,	CONF_DEBUG_RECOVERY,	CONF_DBGDIR,
 
     /* network interface */
     /* COMMENT, */		/* USE, */
@@ -1037,6 +1037,7 @@ keytab_t server_keytab[] = {
     { "CTIMEOUT", CONF_CTIMEOUT },
     { "CUSTOM", CONF_CUSTOM },
     { "DATA_PATH", CONF_DATA_PATH },
+    { "DBGDIR", CONF_DBGDIR },
     { "DEBUG_DAYS"       , CONF_DEBUG_DAYS },
     { "DEBUG_AMANDAD"    , CONF_DEBUG_AMANDAD },
     { "DEBUG_RECOVERY"   , CONF_DEBUG_RECOVERY },
@@ -1499,6 +1500,7 @@ conf_var_t server_var [] = {
    { CONF_SSL_DIR              , CONFTYPE_STR      , read_str         , CNF_SSL_DIR              , NULL },
    { CONF_COMPRESS_INDEX       , CONFTYPE_BOOLEAN  , read_bool        , CNF_COMPRESS_INDEX       , NULL },
    { CONF_SORT_INDEX           , CONFTYPE_BOOLEAN  , read_bool        , CNF_SORT_INDEX           , NULL },
+   { CONF_DBGDIR               , CONFTYPE_STR      , read_str         , CNF_DBGDIR               , NULL },
    { CONF_UNKNOWN              , CONFTYPE_INT      , NULL             , CNF_CNF                  , NULL }
 };
 
@@ -6544,6 +6546,7 @@ init_defaults(
     conf_init_str(&conf_data[CNF_INTERACTIVITY], NULL);
     conf_init_str(&conf_data[CNF_TAPERSCAN], NULL);
     conf_init_str(&conf_data[CNF_HOSTNAME], NULL);
+    conf_init_str(&conf_data[CNF_DBGDIR], get_dbgdir());
 
     /* reset internal variables */
     config_clear_errors();

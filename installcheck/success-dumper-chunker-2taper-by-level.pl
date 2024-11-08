@@ -55,7 +55,7 @@ if ($rest->{'error'}) {
    plan skip_all => "Can't start JSON Rest server: $rest->{'error'}: see " . Amanda::Debug::dbfn();
    exit 1;
 }
-plan tests => 100;
+plan tests => 102;
 
 my $reply;
 
@@ -127,12 +127,20 @@ is($reply->{'body'}->[0]->{'report'}->{'head'}->{'org'}, 'DailySet1' , 'org is c
 is($reply->{'body'}->[0]->{'report'}->{'head'}->{'config_name'}, 'TESTCONF' , 'config_name is correct');
 is($reply->{'body'}->[0]->{'report'}->{'head'}->{'timestamp'}, $timestamp , 'timestamp is correct');
 my @sorted_notes = sort @{$reply->{'body'}->[0]->{'report'}->{'notes'}};
-is($sorted_notes[0], '  planner: Adding new disk localhost:diskname2.' , 'notes[0] is correct');
-is($sorted_notes[1], '  planner: tapecycle (2) <= runspercycle (10)', 'notes[1] is correct');
-is($sorted_notes[2], '  taper: Slot 1 without label can be labeled' , 'notes[2] is correct');
-is($sorted_notes[3], '  taper: Slot 1 without label can be labeled' , 'notes[3] is correct');
-is($sorted_notes[4], '  taper: tape STO-1-00001 kb 1050 fm 1 [OK]' , 'notes[4] is correct');
-ok(!exists $reply->{'body'}->[0]->{'report'}->{'notes'}->[5], 'no notes[5]');
+my $i = 0;
+is($sorted_notes[$i], '  planner: Adding new disk localhost:diskname2.' , "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  planner: tapecycle (2) <= runspercycle (10)', "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  planner: tapecycle (2) <= runspercycle (10)', "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  taper: Slot 1 without label can be labeled' , "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  taper: Slot 1 without label can be labeled' , "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  taper: tape STO-1-00001 kb 1050 fm 1 [OK]' , "notes[$i] is correct");
+$i += 1;
+ok(!exists $reply->{'body'}->[0]->{'report'}->{'notes'}->[$i], "no notes[$i]");
 ok(!exists $reply->{'body'}->[0]->{'report'}->{'failure_summary'}, 'no failure_summary');
 my @sorted_usage_by_tape = sort { $a->{'tape_label'} cmp $b->{'tape_label'}} @{$reply->{'body'}->[0]->{'report'}->{'usage_by_tape'}};
 is($sorted_usage_by_tape[0]->{'nb'}, '1' , 'one dle on tape 0');
@@ -390,6 +398,7 @@ USAGE BY TAPE:
 NOTES:
   planner: Adding new disk localhost:diskname2.
   planner: tapecycle (2) <= runspercycle (10)
+  planner: tapecycle (2) <= runspercycle (10)
   taper: Slot 1 without label can be labeled
   taper: Slot 1 without label can be labeled
   taper: tape STO-1-00001 kb 1050 fm 1 [OK]
@@ -506,14 +515,24 @@ is($reply->{'body'}->[0]->{'report'}->{'head'}->{'org'}, 'DailySet1' , 'org is c
 is($reply->{'body'}->[0]->{'report'}->{'head'}->{'config_name'}, 'TESTCONF' , 'config_name is correct');
 is($reply->{'body'}->[0]->{'report'}->{'head'}->{'timestamp'}, $timestamp , 'timestamp is correct');
 @sorted_notes = sort @{$reply->{'body'}->[0]->{'report'}->{'notes'}};
-is($sorted_notes[0], '  planner: Forcing level 1 of localhost:diskname2 as directed.' , 'notes[0] is correct');
-is($sorted_notes[1], '  planner: Last full dump of localhost:diskname2 on tape STO-1-00001 overwritten in 2 runs.' , 'notes[1] is correct');
-is($sorted_notes[2], '  planner: tapecycle (2) <= runspercycle (10)', 'notes[2] is correct');
-is($sorted_notes[3], '  taper: Slot 1 with label STO-1-00001 is not reusable' , 'notes[3] is correct');
-is($sorted_notes[4], '  taper: Slot 1 without label can be labeled' , 'notes[4] is correct');
-is($sorted_notes[5], '  taper: Slot 2 without label can be labeled' , 'notes[5] is correct');
-is($sorted_notes[6], '  taper: tape STO-2-00001 kb 100 fm 1 [OK]' , 'notes[6] is correct');
-ok(!exists $reply->{'body'}->[0]->{'report'}->{'notes'}->[7], 'no notes[7]');
+$i = 0;
+is($sorted_notes[$i], '  planner: Forcing level 1 of localhost:diskname2 as directed.' , "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  planner: Last full dump of localhost:diskname2 on tape STO-1-00001 overwritten in 2 runs.' , "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  planner: tapecycle (2) <= runspercycle (10)', "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  planner: tapecycle (2) <= runspercycle (10)', "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  taper: Slot 1 with label STO-1-00001 is not reusable' , "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  taper: Slot 1 without label can be labeled' , "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  taper: Slot 2 without label can be labeled' , "notes[$i] is correct");
+$i += 1;
+is($sorted_notes[$i], '  taper: tape STO-2-00001 kb 100 fm 1 [OK]' , "notes[$i] is correct");
+$i += 1;
+ok(!exists $reply->{'body'}->[0]->{'report'}->{'notes'}->[$i], "no notes[$i]");
 @sorted_usage_by_tape = sort { $a->{'tape_label'} cmp $b->{'tape_label'}} @{$reply->{'body'}->[0]->{'report'}->{'usage_by_tape'}};
 is($sorted_usage_by_tape[0]->{'nb'}, '1' , 'one dle on tape 0');
 is($sorted_usage_by_tape[0]->{'nc'}, '1' , 'one part on tape 0');

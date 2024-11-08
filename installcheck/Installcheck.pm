@@ -164,7 +164,7 @@ sub TIEHANDLE {
 
 sub print {
     my ($self, @args);
-    reutrn $self->PRINT(@args);
+    return $self->PRINT(@args);
 }
 
 sub PRINT {

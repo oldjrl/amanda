@@ -27,12 +27,13 @@ use Time::Local;
 use File::Copy;
 use File::Path;
 use Socket;   # for gethostbyname
+use Amanda::Debug qw( get_dbgdir );
 use Amanda::Paths;
 use Amanda::Util qw( :constants );
 use Amanda::Constants;
 
 my $confdir="$CONFIG_DIR";
-my $tmpdir="$AMANDA_DBGDIR";
+my $dbgdir=get_dbgdir();
 my $templatedir="$amdatadir/template.d"; #rpm install template files here
 my $def_tapedev="file:$amandastatedir/vtapes";
 
@@ -524,14 +525,14 @@ $ENV{'PATH'} = "/usr/bin:/usr/sbin:/sbin:/bin:/usr/ucb"; # force known path
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 $date=`date +%Y%m%d%H%M%S`;
 chomp($date);
-my $logfile="$tmpdir/amserverconfig.$date.debug";
+my $logfile="$dbgdir/amserverconfig.$date.debug";
 
 Amanda::Util::setup_application("amserverconfig", "server", $CONTEXT_CMDLINE, "amanda", "amanda");
 Amanda::Util::finish_setup($RUNNING_AS_ANY);
 
-unless ( -e "$tmpdir" ) {
-    mkpath ("$tmpdir", $def_perm) ||
-	die ("ERROR: mkpath: $tmpdir failed: $!\n");
+unless ( -e "$dbgdir" ) {
+    mkpath ("$dbgdir", $def_perm) ||
+	die ("ERROR: mkpath: $dbgdir failed: $!\n");
 }
 
 open (LOG, ">$logfile") || die ("ERROR: Cannot create logfile: $!\n");

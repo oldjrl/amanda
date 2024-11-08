@@ -145,8 +145,13 @@ particular test script.
 
 use Installcheck;
 use Installcheck::Config;
+use Amanda::Config qw( :getconf );
+use Amanda::Debug qw( get_dbgdir );
 use Amanda::Paths;
+use File::Copy;
+use File::Find;
 use File::Path;
+use File::Spec::Functions;
 use IPC::Open3;
 use Cwd qw(abs_path getcwd);
 use Carp;
@@ -154,6 +159,7 @@ use POSIX qw( WIFEXITED );
 use Test::More;
 use Amanda::Config qw( :init );
 use Amanda::Util qw(slurp);
+use HierHash;
 
 require Exporter;
 
@@ -193,8 +199,13 @@ our $diskname = "$Installcheck::TMP/backmeup";
 our $taperoot = "$Installcheck::TMP/vtapes";
 our $holdingdir ="$Installcheck::TMP/holding";
 
+my $run_setup_start_time;
+my $run_setup_start_timestamp;
+
 sub setup {
     my $nb_slot = shift;
+    $run_setup_start_time = time();
+    $run_setup_start_timestamp = Amanda::Util::generate_timestamp();
     my $testconf = Installcheck::Config->new();
 
     $nb_slot = 3 if !defined $nb_slot;
@@ -403,11 +414,17 @@ sub load_vtape_res {
     return $res;
 }
 
+my $ran_test = 0;
+
 sub run {
     my $app = shift;
     my @args = @_;
     my $errtempfile = "$Installcheck::TMP/stderr$$.out";
 
+    if ($ran_test and 0) {
+	preserve_run_on_failure();
+	$ran_test = 0;
+    }
     # use a temporary file for error output -- this eliminates synchronization
     # problems between reading stderr and stdout
     local (*INFH, *OUTFH, *ERRFH);
@@ -416,6 +433,7 @@ sub run {
     $app = "$sbindir/$app" unless ($app =~ qr{/});
     my $pid = IPC::Open3::open3("INFH", "OUTFH", ">&ERRFH",
 	"$app", @args);
+    $ran_test = 1;
 
     # immediately close the child's stdin
     close(INFH);
@@ -493,6 +511,10 @@ sub run_err {
 }
 
 sub cleanup {
+    if ($ran_test) {
+	preserve_run_on_failure();
+	$ran_test = 0;
+    }
     Installcheck::Config::cleanup();
 
     if (-d $taperoot) {
@@ -737,5 +759,49 @@ sub check_amstatus
     diag_diff($got_status, $status, $text);
 #diag("stdout $got_status");
 #diag("status: $status");
+}
+
+my $next_builder_index = 0;
+
+sub preserve_run_on_failure()
+{
+    my $builder = Test::More->builder;
+    my @results = $builder->new->summary;
+    my $failed = 0;
+
+    # We want to check any new tests, not those we've already counted.
+    for my $test (@results[$next_builder_index,-1]) {
+	$failed += 1 if (!$test);
+    }
+    $next_builder_index = $#results + 1;
+
+    if ($failed) {
+	my $cfgdir = $CONFIG_DIR;
+	my $logdir = "$CONFIG_DIR/TESTCONF/log";
+	my $dbgdir = get_dbgdir();
+	my $tmpdir = getconf($CNF_TMPDIR);
+
+	my %cfg = (
+	    qr(/*.*/?) => 1		# default, everything under $CONFIG_DIR
+	    );
+	my %tmp = (
+	    qr(/*.*/?) => 0,		# default, don't copy anything
+	    qr(installchecks/) => {
+		qr(((holding)|(infodir)|(vtapes.*)|(TESTCONF))/) => {	# anything under holding, infodir, vtapes*, TESTCONF in tmp/installchecks
+		    qr(/*.*/?) => 'modified_between($self, $sfpath, ' . $run_setup_start_time . ', undef)'
+		}
+	    },
+	    qr(((server)|(client)|(amandad)|(log.error))/) => {	# anything under server, client, amandad, log.error in tmp
+		qr(/*.*/?) => 'modified_between($self, $sfpath, ' . $run_setup_start_time . ', undef)'
+	    }
+	    );
+	my %cores = (
+	    qr(/*.*/?) => 0,		# default, don't copy anything
+	    qr(/*.+\.core) => 'modified_between($self, $sfpath, ' . $run_setup_start_time . ', undef)'
+	    );
+	copy_dir_selected("$cfgdir", $dbgdir . "config.$run_setup_start_timestamp", \%cfg);
+	copy_dir_selected("$tmpdir/", $dbgdir . "cores.$run_setup_start_timestamp", \%cores);
+	copy_dir_selected("$tmpdir/", $dbgdir . "tmp.$run_setup_start_timestamp", \%tmp);
+    }
 }
 1;

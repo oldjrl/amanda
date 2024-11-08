@@ -1559,7 +1559,7 @@ setup_errout(void)
     errf_lines = 0;
 
     g_free(errfname);
-    errfname = g_strconcat(AMANDA_DBGDIR, "/log.error", NULL);
+    errfname = g_strconcat(get_dbgdir(), "/log.error", NULL);
 
     if (mkdir(errfname, 0700) == -1) {
 	if (errno != EEXIST) {
@@ -1571,7 +1571,7 @@ setup_errout(void)
     }
 
     g_free(errfname);
-    errfname = g_strconcat(AMANDA_DBGDIR, "/log.error/", hostname, ".", fn, ".",
+    errfname = g_strconcat(get_dbgdir(), "/log.error/", hostname, ".", fn, ".",
         level_str, ".", time_str, ".errout", NULL);
 
     amfree(fn);

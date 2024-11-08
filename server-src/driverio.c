@@ -194,7 +194,6 @@ start_one_tape_process(
 	taper->name = g_strdup_printf("taper%d", nb_taper);
 	taper->storage_name = g_strdup(storage_n);
 	taper->ev_read = NULL;
-	taper->nb_wait_reply = 0;
 	nb_worker = storage_get_taper_parallel_write(storage);
 	taper->runtapes = storage_get_runtapes(storage);
 	if (nb_worker > taper->runtapes)
@@ -244,6 +243,9 @@ start_one_tape_process(
 	    wtaper->vaultqs.vaultq.head = NULL;
 	    wtaper->vaultqs.vaultq.tail = NULL;
 	    wtaper->taper = taper;
+	    wtaper->wait_reply = FALSE;
+	    wtaper->cmd = BOGUS;
+	    wtaper->retryable = FALSE;
 
 	    /* jump right to degraded mode if there's no taper */
 	    if (no_taper) {
@@ -583,6 +585,7 @@ taper_cmd(
 
     switch(cmd) {
     case START_TAPER:
+        wtaper->retryable = TRUE;
 	cmdline = g_strjoin(NULL, cmdstr[cmd],
 			    " ", taper->name,
 			    " ", wtaper->name,
@@ -591,18 +594,21 @@ taper_cmd(
 			    "\n", NULL);
 	break;
     case CLOSE_VOLUME:
+        wtaper->retryable = TRUE;
 	dp = (disk_t *) ptr;
 	cmdline = g_strjoin(NULL, cmdstr[cmd],
 			    " ", wtaper->name,
 			    "\n", NULL);
 	break;
     case CLOSE_SOURCE_VOLUME:
+        wtaper->retryable = TRUE;
 	dp = (disk_t *) ptr;
 	cmdline = g_strjoin(NULL, cmdstr[cmd],
 			    " ", wtaper->name,
 			    "\n", NULL);
 	break;
     case FILE_WRITE:
+        wtaper->retryable = TRUE;
 	sp = (sched_t *)ptr;
 	dp = sp->disk;
         qname = quote_string(dp->name);
@@ -632,6 +638,7 @@ taper_cmd(
 
     case PORT_WRITE:
     case SHM_WRITE:
+        wtaper->retryable = TRUE;
 	sp = (sched_t *)ptr;
 	dp = sp->disk;
         qname = quote_string(dp->name);
@@ -659,6 +666,7 @@ taper_cmd(
 	break;
 
     case VAULT_WRITE:
+        wtaper->retryable = TRUE;
 	sp = (sched_t *) ptr;
 	dp = sp->disk;
         qname = quote_string(dp->name);
@@ -687,6 +695,7 @@ taper_cmd(
 	break;
 
     case DONE: /* handle */
+        wtaper->retryable = FALSE;
 	sp = (sched_t *)ptr;
 	dp = sp->disk;
 	if (sp->origsize >= 0)
@@ -720,6 +729,7 @@ taper_cmd(
 			    "\n", NULL);
 	break;
     case FAILED: /* handle */
+        wtaper->retryable = FALSE;
 	sp = (sched_t *)ptr;
 	dp = sp->disk;
 	cmdline = g_strjoin(NULL, cmdstr[cmd],
@@ -728,6 +738,7 @@ taper_cmd(
 			    "\n", NULL);
 	break;
     case NO_NEW_TAPE:
+        wtaper->retryable = FALSE;
 	sp = (sched_t *)ptr;
 	dp = sp->disk;
 	q = quote_string(destname);	/* reason why no new tape */
@@ -739,6 +750,7 @@ taper_cmd(
 	amfree(q);
 	break;
     case NEW_TAPE:
+        wtaper->retryable = FALSE;
 	sp = (sched_t *)ptr;
 	dp = sp->disk;
 	cmdline = g_strjoin(NULL, cmdstr[cmd],
@@ -747,6 +759,7 @@ taper_cmd(
 			    "\n", NULL);
 	break;
     case START_SCAN:
+        wtaper->retryable = FALSE;
 	sp = (sched_t *)ptr;
 	dp = sp->disk;
 	cmdline = g_strjoin(NULL, cmdstr[cmd],
@@ -755,6 +768,7 @@ taper_cmd(
 			    "\n", NULL);
 	break;
     case TAKE_SCRIBE_FROM:
+        wtaper->retryable = FALSE;
 	sp = (sched_t *)ptr;
 	dp = sp->disk;
 	cmdline = g_strjoin(NULL, cmdstr[cmd],
@@ -764,12 +778,29 @@ taper_cmd(
 			    "\n", NULL);
 	break;
     case QUIT:
+        /* Typically, we won't have a wtaper on the QUIT command.
+	 * Clear retryable on all wtapers for this taper,
+	 */
+        {
+	  int i;
+	  for (i = 0; i < taper->nb_worker; i += 1) {
+	    taper->wtapetable[i].retryable = FALSE;
+	  }
+	}
 	cmdline = g_strconcat(cmdstr[cmd], "\n", NULL);
 	break;
     default:
 	error(_("Don't know how to send %s command to taper"), cmdstr[cmd]);
 	/*NOTREACHED*/
     }
+
+    /* wtaper will be NULL for the QUIT command.
+     * Use the first wtaper.
+     */
+    if (wtaper == NULL) {
+      wtaper = taper->wtapetable;
+    }
+    wtaper->cmd = cmd;
 
     /*
      * Note: cmdline already has a '\n'.
@@ -1152,6 +1183,7 @@ void
 free_sched(
     sched_t *sp)
 {
+  if (sp) {
     g_free(sp->dumpdate);
     g_free(sp->degr_dumpdate);
     g_free(sp->destname);
@@ -1161,6 +1193,7 @@ free_sched(
     g_free(sp->src_pool);
     g_free(sp->src_label);
     g_free(sp);
+  }
 }
 
 job_t *

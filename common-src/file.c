@@ -30,6 +30,7 @@
 
 #include "amanda.h"
 #include "amutil.h"
+#include "conffile.h"
 #include "timestamp.h"
 #include "file.h"
 
@@ -174,6 +175,7 @@ safe_cd(void)
     char		*d;
     uid_t		client_uid = get_client_uid();
     gid_t		client_gid = get_client_gid();
+    char		*l_dbgdir;
 
     (void) umask(0077);
 
@@ -182,25 +184,22 @@ safe_cd(void)
 	original_cwd = g_get_current_dir();
     }
 
+    l_dbgdir = get_dbgdir();
     if (client_uid != (uid_t) -1) {
-#if defined(AMANDA_DBGDIR)
-	d = g_strconcat(AMANDA_DBGDIR, "/.", NULL);
+	d = g_strconcat(l_dbgdir, "/.", NULL);
 	(void) mkpdir(d, (mode_t)0700, client_uid, client_gid);
 	amfree(d);
-#endif
 	d = g_strconcat(AMANDA_TMPDIR, "/.", NULL);
 	(void) mkpdir(d, (mode_t)0700, client_uid, client_gid);
 	amfree(d);
     }
 
-#if defined(AMANDA_DBGDIR)
-    if (chdir(AMANDA_DBGDIR) != -1
+    if (chdir(l_dbgdir) != -1
 	&& stat(".", &sbuf) != -1
 	&& (sbuf.st_mode & 0777) == 0700	/* drwx------ */
 	&& sbuf.st_uid == client_uid) {		/* owned by Amanda user */
 	cd_ok = 1;				/* this is a good place to be */
     }
-#endif
     if (! cd_ok
 	&& chdir(AMANDA_TMPDIR) != -1
 	&& stat(".", &sbuf) != -1

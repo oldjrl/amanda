@@ -76,11 +76,13 @@ sub new {
     my $logdir = "$CONFIG_DIR/TESTCONF/log";
     my $indexdir = "$CONFIG_DIR/TESTCONF/index";
     my $org = "DailySet1";
+    my $dbgdir = $Amanda::Paths::AMANDA_DBGDIR . "/" . Amanda::Util::get_pname();
 
     my $self = {
 	'infofile' => $infofile,
 	'logdir' => $logdir,
 	'indexdir' => $indexdir,
+	'dbgdir' => $dbgdir,
 
 	# Global params are stored as an arrayref, so that the same declaration
 	# can appear multiple times
@@ -92,6 +94,7 @@ sub new {
 	    'inparallel' => "2",
 	    'infofile' => "\"$infofile\"",
 	    'logdir' => "\"$logdir\"",
+	    'dbgdir' => "\"$dbgdir\"",
 	    'indexdir' => "\"$indexdir\"",
 	    'org' => "\"$org\"",
 	    'send-amreport-on' =>'never',

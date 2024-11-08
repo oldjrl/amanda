@@ -22,13 +22,15 @@
 #
 
 
+use Amanda::Debug qw( get_dbgdir );
+
 use Getopt::Long;
 use Time::Local;
 use File::Copy;
 use Socket;   # for gethostbyname
 
 my $confdir="@CONFIG_DIR@";
-my $tmpdir="@AMANDA_DBGDIR@";
+my $dbgdir=get_dbgdir();
 
 my $prefix="@prefix@";
 my $localstatedir="@localstatedir@";
@@ -242,7 +244,7 @@ $oldPATH = $ENV{'PATH'};
 $ENV{'PATH'} = "/usr/bin:/usr/sbin:/sbin:/bin:/usr/ucb"; # force known path
 $date=`date +%Y%m%d%H%M%S`;
 chomp($date);
-my $logfile="$tmpdir/amaddclient.$date.debug";
+my $logfile="$dbgdir/amaddclient.$date.debug";
 
 &is_user_right;
 open (LOG, ">$logfile") || die "ERROR: Cannot create logfile : $!\n";

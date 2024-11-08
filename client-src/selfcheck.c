@@ -1611,9 +1611,7 @@ check_overall(void)
     delete_message(selfcheck_print_message(check_access_message("/dev/null", R_OK|W_OK)));
     check_space(AMANDA_TMPDIR, (off_t)64);	/* for amandad i/o */
 
-#ifdef AMANDA_DBGDIR
-    check_space(AMANDA_DBGDIR, (off_t)64);	/* for amandad i/o */
-#endif
+    check_space(get_dbgdir(), (off_t)64);	/* for amandad i/o */
 
     check_space("/etc", (off_t)64);		/* for /etc/dumpdates writing */
     }

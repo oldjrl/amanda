@@ -27,7 +27,7 @@ use Installcheck::Dumpcache;
 use Installcheck::Config;
 use Installcheck::Run qw(run run_err $diskname amdump_diag);
 use Amanda::Config qw( :init );
-use Amanda::Debug;
+use Amanda::Debug qw( get_dbgdir );
 use Amanda::Paths;
 use warnings;
 use strict;
@@ -39,7 +39,9 @@ Installcheck::log_test_output();
 my $reply;
 my $config_dir = $Amanda::Paths::CONFIG_DIR;
 my $amperldir = $Amanda::Paths::amperldir;
-my $dbgdir = $Amanda::Paths::AMANDA_DBGDIR;
+# Remove any trailing slash from $dbgdir since it won't be present in the
+#  config version.
+(my $dbgdir = get_dbgdir()) =~ s/(.*)\/$/$1/;
 my $testconf;
 
 # Run amdump with client- and server-side scripts
@@ -864,10 +866,10 @@ EODLE
 				       'failure_details' => [
                                                              '  localhost diskname2 lev 0 FAILED [Script \'script-fail\' command \'PRE-DLE-BACKUP\': stderr error:  PRE-DLE-BACKUP]',
                                                              '  sendbackup: error [Script \'script-fail\' command \'PRE-DLE-BACKUP\': stderr error:  PRE-DLE-BACKUP]',
-                                                             "  sendbackup: error [Script \'script-fail\' command \'PRE-DLE-BACKUP\' exited with status 1: see $dbgdir/client/TESTCONF/sendbackup.DATESTAMP.debug]",
+                                                             "  sendbackup: error [Script \'script-fail\' command \'PRE-DLE-BACKUP\' exited with status 1: see $dbgdir/sendbackup.DATESTAMP.debug]",
                                                              '  localhost diskname2 lev 0 FAILED [Script \'script-fail\' command \'PRE-DLE-BACKUP\': stderr error:  PRE-DLE-BACKUP]',
                                                              '  sendbackup: error [Script \'script-fail\' command \'PRE-DLE-BACKUP\': stderr error:  PRE-DLE-BACKUP]',
-                                                             "  sendbackup: error [Script \'script-fail\' command \'PRE-DLE-BACKUP\' exited with status 1: see $dbgdir/client/TESTCONF/sendbackup.DATESTAMP.debug]",
+                                                             "  sendbackup: error [Script \'script-fail\' command \'PRE-DLE-BACKUP\' exited with status 1: see $dbgdir/sendbackup.DATESTAMP.debug]",
                                                             ],
                                        'head' => {
                                                    'exit_status' => '4',

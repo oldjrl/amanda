@@ -181,6 +181,12 @@ static TapeAction tape_action(wtaper_t *wtaper,
 			      char **why_no_new_tape,
 			      gboolean action_flush);
 
+typedef enum {
+  TAPER_ERROR_RETRY = 0,
+  TAPER_ERROR_FAIL_SCHED = 1 << 0,
+  TAPER_ERROR_FAIL_TAPER = 1 << 1,
+} HandleTaperError;
+
 static const char *idle_strings[] = {
 #define NOT_IDLE		0
     T_("not-idle"),
@@ -581,7 +587,7 @@ main(
 	    if (!taper->down && taper->storage_name) {
 		wtaper = taper->wtapetable;
 		wtaper->state = TAPER_STATE_INIT;
-		taper->nb_wait_reply++;
+		wtaper->wait_reply = TRUE;
 		taper->nb_scan_volume++;
 		taper->ev_read = event_create(taper->fd, EV_READFD,
 					      handle_taper_result, taper);
@@ -727,7 +733,7 @@ main(
 		     wtaper++) {
 		    if (wtaper->state & TAPER_STATE_RESERVATION) {
 			if (wtaper->current_dest_label) {
-			    taper->nb_wait_reply++;
+			    wtaper->wait_reply = TRUE;
 			    wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
 			    taper_cmd(taper, wtaper, CLOSE_VOLUME, NULL, NULL, 0, NULL);
 			    closers += 1;
@@ -758,9 +764,7 @@ main(
 		taper->wtapetable->state == TAPER_STATE_DEFAULT) {
 		wtaper = taper->wtapetable;
 		wtaper->state = TAPER_STATE_INIT;
-		if (taper->nb_wait_reply == 0) {
-		    taper->nb_wait_reply++;
-		}
+		wtaper->wait_reply = TRUE;
 		taper->nb_scan_volume++;
 		taper->ev_read = event_create(taper->fd, EV_READFD,
 					      handle_taper_result, taper);
@@ -791,7 +795,7 @@ main(
 		 wtaper++) {
 		if (wtaper->state & TAPER_STATE_RESERVATION) {
 		    if (wtaper->current_dest_label) {
-			taper->nb_wait_reply++;
+			wtaper->wait_reply = TRUE;
 			wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
 			taper_cmd(taper, wtaper, CLOSE_VOLUME, NULL, NULL, 0, NULL);
 			closers += 1;
@@ -1344,7 +1348,7 @@ start_a_flush_wtaper(
 	    wtaper->state &= ~TAPER_STATE_IDLE;
 	    wtaper->state |= TAPER_STATE_FILE_TO_TAPE;
 	    qname = quote_string(dp->name);
-	    taper->nb_wait_reply++;
+	    wtaper->wait_reply = TRUE;
 	    taper->nb_dle += 1;
 	    if (!(wtaper->state & TAPER_STATE_TAPE_STARTED)) {
 		assert(taper->sent_first_write == NULL);
@@ -1557,7 +1561,7 @@ start_a_vault_wtaper(
 	    wtaper->state &= ~TAPER_STATE_IDLE;
 	    wtaper->state |= TAPER_STATE_VAULT_TO_TAPE;
 	    qname = quote_string(dp->name);
-	    taper->nb_wait_reply++;
+	    wtaper->wait_reply = TRUE;
 	    taper->nb_dle += 1;
 	    if (taper->sent_first_write == NULL) {
 		taper->sent_first_write = wtaper;
@@ -2025,7 +2029,7 @@ start_some_dumps(
 		//		wtaper->left = taper->tape_length;
 	    }
 
-	    taper->nb_wait_reply++;
+	    wtaper->wait_reply = TRUE;
 	    if (sp->disk->data_path == DATA_PATH_DIRECTTCP ||
 		sp->disk->compress == COMP_SERVER_FAST ||
 		sp->disk->compress == COMP_SERVER_BEST ||
@@ -2311,6 +2315,11 @@ static gboolean is_all_work_done(int line)
   dumper_t *dumper;
   static char *fname = "is_all_work_done";
 
+  if (!schedule_done) {
+    g_debug("%s: %d: !schedule_done", fname, line);
+    return FALSE;
+  }
+
   if (all_queues_empty()) {
     for (dumper = dmptable; dumper < (dmptable+inparallel); dumper++) {
       if (dumper->busy) {
@@ -2328,9 +2337,11 @@ static gboolean is_all_work_done(int line)
   return done;
 }
 
-static void
+static HandleTaperError
 handle_taper_error(
-	wtaper_t *wtaper)
+   wtaper_t *wtaper,
+   char *component
+)
 {
     job_t *job = wtaper->job;
     sched_t  *sp     = job->sched;
@@ -2339,65 +2350,100 @@ handle_taper_error(
     char    *qname = quote_string(sp->disk->name);
     gboolean fail_taper = FALSE;
     gboolean fail_sched = FALSE;
+    HandleTaperError result = TAPER_ERROR_RETRY;
 
     if (wtaper->input_error) {
-	g_printf("driver: taper failed %s %s: %s\n",
-		   dp->host->hostname, qname, wtaper->input_error);
-	if (g_str_equal(sp->datestamp, driver_timestamp)) {
+        /* Is the input from the holding disk, or a direct file dump? */
+	g_printf("driver: taper failed %s %s: %d %s %s (%s)\n",
+		 dp->host->hostname, qname, wtaper->cmd, wtaper->input_error,
+		 wtaper->retryable ? "retryable" : "not retryable",
+		 component);
+	if (wtaper->retryable) {
+	  if (g_str_equal(sp->datestamp, driver_timestamp)) {
 	    if (sp->taper_attempted >= dp->retry_dump) {
-		g_printf("driver: taper failed %s %s, too many taper retry after holding disk error\n",
-		   dp->host->hostname, qname);
-		fail_sched = TRUE;
+	      g_printf("driver: taper failed %s %s, too many taper retry after holding disk error (%s)\n",
+		       dp->host->hostname, qname, component);
+	      fail_sched = TRUE;
 	    } else {
-		log_add(L_INFO, _("%s %s %s %d [Will retry dump because of holding disk error: %s]"),
-			dp->host->hostname, qname, sp->datestamp,
-			sp->level, wtaper->input_error);
-		g_printf("driver: taper will retry %s %s because of holding disk error\n",
-			dp->host->hostname, qname);
-		if (dp->to_holdingdisk != HOLD_REQUIRED) {
-		    dp->to_holdingdisk = HOLD_NEVER;
-		    sp->dump_attempted -= 1;
-		    sp->taper_attempted += 1;
-		    sp->action = ACTION_DUMP_TO_TAPE;
-		    headqueue_sched(&directq, sp);
-		} else {
-		  fail_sched = TRUE;
-		}
+	      log_add(L_INFO, _("%s %s %s %d [Will retry dump because of holding disk error: %s]"),
+		      dp->host->hostname, qname, sp->datestamp,
+		      sp->level, wtaper->input_error);
+	      g_printf("driver: taper will retry %s %s because of holding disk error\n",
+		       dp->host->hostname, qname);
+	      if (dp->to_holdingdisk != HOLD_REQUIRED) {
+		dp->to_holdingdisk = HOLD_NEVER;
+		sp->dump_attempted -= 1;
+		sp->taper_attempted += 1;
+		sp->action = ACTION_DUMP_TO_TAPE;
+		headqueue_sched(&directq, sp);
+	      } else {
+		fail_sched = TRUE;
+	      }
 	    }
+	  } else {
+	    /* timestamp mismatch. This is a log/program bug. */
+	    g_printf("driver: %s %s timestamp mismatch: sched %s != driver %s (%s)\n",
+		     dp->host->hostname, qname,
+		     sp->datestamp, driver_timestamp,
+		     component);
+	    fail_sched = TRUE;
+	  }
 	} else {
+	  /* The cmd isn't retryable.
+	   * Should we fail just the schedule, or the taper?
+	   */
 	  fail_sched = TRUE;
+	  if (wtaper->cmd == NO_NEW_TAPE) {
+	    fail_taper = TRUE;
+	  }
 	}
     } else if (wtaper->tape_error) {
-	g_printf("driver: taper failed %s %s with tape error: %s\n",
-		   dp->host->hostname, qname, wtaper->tape_error);
-	/* Is this a NO_NEW_TAPE error? */
-	if (wtaper->state & TAPER_STATE_TAPE_REQUESTED &&
-	    taper->current_tape >= taper->runtapes) {
-	  fail_taper = TRUE;
-	} else if (sp->taper_attempted >= dp->retry_dump) {
-	    g_printf("driver: taper failed %s %s, too many taper retry\n",
-		   dp->host->hostname, qname);
+	g_printf("driver: taper failed %s %s with tape error: %s (%s)\n",
+		 dp->host->hostname, qname, wtaper->tape_error, component);
+	if (wtaper->retryable) {
+	  if (sp->taper_attempted >= dp->retry_dump) {
+	    g_printf("driver: taper failed %s %s, too many taper retry (%s)\n",
+		     dp->host->hostname, qname, component);
 	    fail_sched = TRUE;
-	} else {
+	  } else {
 	    char *wall_time = walltime_str(curclock());
-	    g_printf("driver: taper will retry %s %s\n",
-		   dp->host->hostname, qname);
+	    g_printf("driver: taper will retry %s %s (%s)\n",
+		     dp->host->hostname, qname, component);
+#if 0
+
 	    /* Re-insert into taper queue. */
 	    sp->action = ACTION_FLUSH;
 	    sp->taper_attempted += 1;
 	    g_printf("driver: requeue write time %s %s %s %s %s\n", wall_time, sp->disk->host->hostname, qname, sp->datestamp, wtaper->taper->storage_name);
 	    headqueue_sched(&wtaper->taper->tapeq, sp);
+#endif
+	  }
+	} else {
+	  /* The cmd isn't retryable.
+	   * Should we fail just the schedule, or the taper?
+	   */
+	  fail_sched = TRUE;
+	  if (wtaper->cmd == NO_NEW_TAPE) {
+	    fail_taper = TRUE;
+	  }
 	}
     }
     /* Should we fail this schedule */
     if (fail_sched) {
+      result |= TAPER_ERROR_FAIL_SCHED;
+#if 0
       remove_sched(&taper->tapeq, sp);
       free_sched(sp);
+#endif
     }
     /* Are we giving up on this taper? */
     if (fail_taper) {
+      result |= TAPER_ERROR_FAIL_TAPER;
+#if 0
       g_list_free_full(&taper->tapeq, free_sched);
+#endif
     }
+    return result;
 }
 
 static void
@@ -2468,7 +2514,7 @@ handle_taper_result(
 	    amfree(wtaper->dst_labels_str);
 	    slist_free_full(wtaper->dst_labels, g_free);
 	    wtaper->dst_labels = NULL;
-	    taper->nb_wait_reply--;
+	    wtaper->wait_reply = FALSE;
 	    taper->nb_scan_volume--;
 	    taper->last_started_wtaper = wtaper;
 	    break;
@@ -2561,6 +2607,7 @@ handle_taper_result(
 	    dp = sp->disk;
 	    wtaper = wtaper_from_name(taper, result_argv[1]);
 	    assert(wtaper == job->wtaper);
+	    wtaper->wait_reply = FALSE;
 
 	    qname = quote_string(dp->name);
 	    g_printf(_("driver: finished-cmd time %s taper %s worker %s wrote %s:%s\n"),
@@ -2628,6 +2675,7 @@ handle_taper_result(
 	    off_t kb_this_write;
 	    wtaper = wtaper_from_name(taper, result_argv[1]);
 	    assert(wtaper == job->wtaper);
+	    wtaper->wait_reply = FALSE;
 
             if (result_argc != 7) {
                 error(_("error [taper PARTDONE result_argc != 7: %d]"),
@@ -2739,7 +2787,7 @@ handle_taper_result(
 		    wtaper1->state == TAPER_STATE_DEFAULT &&
 		    tape_action(wtaper1, NULL, FALSE) == TAPE_ACTION_START_TAPER) {
 		    wtaper1->state = TAPER_STATE_INIT;
-		    taper->nb_wait_reply++;
+		    wtaper1->wait_reply = TRUE;
 		    taper->nb_scan_volume++;
 		    taper_cmd(taper, wtaper1, START_TAPER, NULL, wtaper1->name, 0,
 			      driver_timestamp);
@@ -2797,14 +2845,19 @@ handle_taper_result(
         case TAPE_ERROR: /* TAPE-ERROR <worker> <err mess> */
 	    check_for_done = TRUE;
 	    taper_started = 1;
-	    taper->down =1;
+	    taper->down = 1;
 	    if (g_str_equal(result_argv[1], "SETUP")) {
-		taper->nb_wait_reply = 0;
 		taper->nb_scan_volume = 0;
 		taper->fd = -1;
+		for (wtaper = taper->wtapetable;
+		     wtaper < taper->wtapetable + taper->nb_worker;
+		     wtaper++) {
+		  wtaper->wait_reply = FALSE; /* we don't expect further communications */
+		}
 	    } else {
 		wtaper = wtaper_from_name(taper, result_argv[1]);
 		assert(wtaper);
+		wtaper->wait_reply = FALSE; /* we don't expect further communications */
 		wtaper->state = TAPER_STATE_DONE;
 		fflush(stdout);
 		q = quote_string(result_argv[2]);
@@ -2813,7 +2866,6 @@ handle_taper_result(
 		g_free(wtaper->tape_error);
 		wtaper->tape_error = g_strdup(result_argv[2]);
 
-		taper->nb_wait_reply--;
 		taper->nb_scan_volume--;
 	    }
 	    taper->degraded_mode = TRUE;
@@ -2874,19 +2926,17 @@ handle_taper_result(
 	    g_debug("got CLOSED_VOLUME message");
 	    check_for_done = TRUE;
 	    wtaper = wtaper_from_name(taper, result_argv[1]);
+	    wtaper->wait_reply = FALSE;
 	    remove_label_in_use(wtaper->current_dest_label);
 	    if (wtaper->state & TAPER_STATE_WAIT_CLOSED_VOLUME) {
 		wtaper->state &= ~TAPER_STATE_WAIT_CLOSED_VOLUME;
-		taper->nb_wait_reply--;
 	    }
 	    g_free(wtaper->current_dest_label);
 	    wtaper->current_dest_label = NULL;
 
 	    wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
 	    wtaper->state &= ~TAPER_STATE_RESERVATION;
-	    if (!(wtaper->state & TAPER_STATE_FILE_TO_TAPE) &&
-		!(wtaper->state & TAPER_STATE_DUMP_TO_TAPE) &&
-		!(wtaper->state & TAPER_STATE_VAULT_TO_TAPE)) {
+	    if (!(wtaper->state & TAPER_STATE_ACTIVE_XFER)) {
 		wtaper->state |= TAPER_STATE_IDLE;
 		if (wtaper->job) {
 		    free_serial_job(wtaper->job);
@@ -2912,17 +2962,15 @@ handle_taper_result(
 	    g_debug("got CLOSED_SOURCE_VOLUME message");
 	    check_for_done = TRUE;
 	    wtaper = wtaper_from_name(taper, result_argv[1]);
+	    wtaper->wait_reply = FALSE;
 	    remove_label_in_use(wtaper->current_source_label);
 	    amfree(wtaper->current_source_label);
 
 	    if (wtaper->state & TAPER_STATE_WAIT_CLOSED_SOURCE_VOLUME) {
-		taper->nb_wait_reply--;
 		wtaper->state &= ~TAPER_STATE_WAIT_CLOSED_SOURCE_VOLUME;
 	    }
 
-	    if (!(wtaper->state & TAPER_STATE_FILE_TO_TAPE) &&
-		!(wtaper->state & TAPER_STATE_DUMP_TO_TAPE) &&
-		!(wtaper->state & TAPER_STATE_VAULT_TO_TAPE)) {
+	    if (!(wtaper->state & TAPER_STATE_ACTIVE_XFER)) {
 		wtaper->state |= TAPER_STATE_IDLE;
 		if (wtaper->job) {
 		    free_serial_job(wtaper->job);
@@ -2995,14 +3043,15 @@ handle_taper_result(
 
 	g_strfreev(result_argv);
 
+#if 0
 	/* Handle any tape errors here. */
 	if (wtaper && (wtaper->input_error || wtaper->tape_error)) {
 	  handle_taper_error(wtaper);
 	}
-
+#endif
 	if (wtaper && job && job->sched && wtaper->result != LAST_TOK) {
 	    if (taper->nb_dle >= taper->max_dle_by_volume) {
-		taper->nb_wait_reply++;
+	        wtaper->wait_reply = TRUE;
 		wtaper->state |= TAPER_STATE_WAIT_CLOSED_VOLUME;
 		taper_cmd(taper, wtaper, CLOSE_VOLUME, job->sched, NULL, 0, NULL);
 		wtaper->state &= ~TAPER_STATE_TAPE_STARTED;
@@ -3037,6 +3086,55 @@ handle_taper_result(
     }
 }
 
+static cmddata_t *
+update_cmd_file_storage(
+    sched_t  *sp,
+    wtaper_t *wtaper,
+    cmddatas_t *a_cmddatas)
+{
+    disk_t   *dp     = sp->disk;
+    taper_t  *taper  = wtaper->taper;
+    cmddata_t *cmddata = NULL;
+    storage_t *storage = lookup_storage(taper->storage_name);
+
+    if (storage) {
+      time_t     now = time(NULL);
+      vault_list_t vl = storage_get_vault_list(storage);
+      for (; vl != NULL; vl = vl->next) {
+	vault_el_t *v = vl->data;
+	if (dump_match_selection(v->storage, sp) &&
+	    !dump_storage_hash_exist(dump_storage_hash,
+				     dp->host->hostname, dp->name, sp->datestamp,
+				     sp->level, v->storage) &&
+	    !cmdfile_get_nb_image_cmd_for_storage(a_cmddatas,
+						  dp->host->hostname, dp->name, sp->datestamp,
+						  sp->level, v->storage)) {
+	  cmddata = g_new0(cmddata_t, 1);
+	  cmddata->operation = CMD_COPY;
+	  cmddata->config = g_strdup(get_config_name());
+	  cmddata->src_storage = g_strdup(taper->storage_name);
+	  cmddata->src_pool = g_strdup(storage_get_tapepool(storage));
+	  cmddata->src_label = g_strdup(wtaper->first_label);
+	  cmddata->src_fileno = wtaper->first_fileno;
+	  cmddata->src_labels_str = g_strdup(wtaper->dst_labels_str);
+	  cmddata->src_labels = wtaper->dst_labels;
+	  wtaper->dst_labels = NULL;
+	  cmddata->holding_file = NULL;
+	  cmddata->hostname = g_strdup(dp->host->hostname);
+	  cmddata->diskname = g_strdup(dp->name);
+	  cmddata->dump_timestamp = g_strdup(sp->datestamp);
+	  cmddata->level = sp->level;
+	  cmddata->dst_storage = g_strdup(v->storage);
+	  cmddata->working_pid = getppid();
+	  cmddata->status = CMD_TODO;
+	  cmddata->start_time = now + v->days * 60*60*24;
+	  // JLM Should call cmdfile_vault
+	}
+      }
+    }
+    return cmddata;
+}
+
 static void
 vault_taper_result(
     job_t *job)
@@ -3046,49 +3144,30 @@ vault_taper_result(
     wtaper_t *wtaper = job->wtaper;
     taper_t  *taper  = wtaper->taper;
     char     *qname  = quote_string(dp->name);
+    HandleTaperError taper_error;
 
     sp->taper_attempted += 1;
 
     job->wtaper = NULL;
 
-    if (wtaper->input_error) {
-        g_printf("driver: taper failed %s %s: %s\n",
-                   dp->host->hostname, qname, wtaper->input_error);
-        if (g_str_equal(sp->datestamp, driver_timestamp)) {
-            if (sp->taper_attempted >= dp->retry_dump) {
-                //log_add(L_FAIL, _("%s %s %s %d [recovery error for vaulting: %s]"),
-		//	dp->host->hostname, qname, sp->datestamp,
-		//	sp->level, wtaper->input_error);
-                g_printf("driver: taper failed %s %s, recovery error for vaulting\n",
-			 dp->host->hostname, qname);
-		free_sched(sp);
-		sp = NULL;
-            } else {
-                //log_add(L_INFO, _("%s %s %s %d [Will retry because of recovery error in vaulting: %s]"),
-                //        dp->host->hostname, qname, sp->datestamp,
-                //        sp->level, wtaper->input_error);
-                g_printf("driver: taper will retry %s %s because of recovery error in vaulting\n",
-                        dp->host->hostname, qname);
-		headqueue_sched(&wtaper->vaultqs.vaultq, sp);
-            }
-        } else {
-	    free_sched(sp);
-	    sp = NULL;
-        }
-    } else if (wtaper->tape_error) {
-        g_printf("driver: vaulting failed %s %s with tape error: %s\n",
-                   dp->host->hostname, qname, wtaper->tape_error);
-        if (sp->taper_attempted >= dp->retry_dump) {
-            g_printf("driver: vaulting failed %s %s, too many taper retry\n",
-                   dp->host->hostname, qname);
-	    free_sched(sp);
-	    sp = NULL;
-        } else {
-            g_printf("driver: vaulting will retry %s %s\n",
-                   dp->host->hostname, qname);
+    if (wtaper->input_error || wtaper->tape_error) {
+        taper_error = handle_taper_error(wtaper, "vaulting");
+	if (taper_error == TAPER_ERROR_RETRY) {
+	  if (g_str_equal(sp->datestamp, driver_timestamp)) {
+	    g_printf("driver: taper will retry %s %s because of recovery error in vaulting\n",
+		     dp->host->hostname, qname);
             /* Re-insert into vault queue. */
 	    sp->action = ACTION_VAULT;
-            headqueue_sched(&wtaper->vaultqs.vaultq, sp);
+	    headqueue_sched(&wtaper->vaultqs.vaultq, sp);
+	  } else {
+	    free_sched(sp);
+	    sp = NULL;
+	  }
+	} else {
+	  if (taper_error & TAPER_ERROR_FAIL_SCHED) {
+		free_sched(sp);
+		sp = NULL;
+	  }
         }
     } else if (wtaper->result != DONE) {
         g_printf("driver: vault failed %s %s without error\n",
@@ -3103,45 +3182,11 @@ vault_taper_result(
 			      taper->storage_name);
         cmddatas = remove_cmd_in_cmdfile(cmddatas, sp->command_id);
 
-        /* this code is duplicated in file_taper_result and dumper_taper_result */
-        /* Add COPY */
         if (taper->storage_name) {
-            storage_t *storage = lookup_storage(taper->storage_name);
-            if (storage) {
-                vault_list_t vl = storage_get_vault_list(storage);
-                for (; vl != NULL; vl = vl->next) {
-                    vault_el_t *v = vl->data;
-                    if (dump_match_selection(v->storage, sp) &&
-			!dump_storage_hash_exist(dump_storage_hash,
-				dp->host->hostname, dp->name, sp->datestamp,
-				sp->level, v->storage) &&
-			!cmdfile_get_nb_image_cmd_for_storage(cmddatas,
-				dp->host->hostname, dp->name, sp->datestamp,
-				sp->level, v->storage)) {
-                        cmddata_t *cmddata = g_new0(cmddata_t, 1);
-                        cmddata->operation = CMD_COPY;
-                        cmddata->config = g_strdup(get_config_name());
-                        cmddata->src_storage = g_strdup(taper->storage_name);
-                        cmddata->src_pool = g_strdup(storage_get_tapepool(storage));
-                        cmddata->src_label = g_strdup(wtaper->first_label);
-                        cmddata->src_fileno = wtaper->first_fileno;
-			cmddata->src_labels_str = g_strdup(wtaper->dst_labels_str);
-			cmddata->src_labels = wtaper->dst_labels;
-			wtaper->dst_labels = NULL;
-                        cmddata->holding_file = NULL;
-                        cmddata->hostname = g_strdup(dp->host->hostname);
-                        cmddata->diskname = g_strdup(dp->name);
-                        cmddata->dump_timestamp = g_strdup(sp->datestamp);
-                        cmddata->level = sp->level;
-                        cmddata->dst_storage = g_strdup(v->storage);
-                        cmddata->working_pid = getppid();
-                        cmddata->status = CMD_TODO;
-                        cmddata->start_time = now + v->days * 60*60*24;
-                        cmddatas = add_cmd_in_cmdfile(cmddatas, cmddata);
-			// JLM Should call cmdfile_vault
-                    }
-                }
-            }
+	    cmddata_t *cmddata = update_cmd_file_storage(sp, wtaper, cmddatas);
+	    if (cmddata) {
+	      cmddatas = add_cmd_in_cmdfile(cmddatas, cmddata);
+	    }
         }
 	free_sched(sp);
 	sp = NULL;
@@ -3160,8 +3205,6 @@ vault_taper_result(
 	free_job(job);
 	wtaper->job = NULL;
     }
-
-    taper->nb_wait_reply--;
 
     /* continue with those dumps waiting for diskspace */
     continue_port_dumps();
@@ -3185,6 +3228,9 @@ file_taper_result(
     disk_t   *dp;
     char    *qname = quote_string(sp->disk->name);
     int delete_sched = 0;
+    int fail_taper = 0;
+    gboolean retry = FALSE;
+    HandleTaperError taper_error;
 
     sp->taper_attempted += 1;
     dp = sp->disk;
@@ -3197,58 +3243,71 @@ file_taper_result(
 			  sp->level);
     }
 
-    if (wtaper->input_error) {
-	g_printf("driver: taper failed %s %s: %s\n",
-		   dp->host->hostname, qname, wtaper->input_error);
-	if (g_str_equal(sp->datestamp, driver_timestamp)) {
-	    if (sp->taper_attempted >= dp->retry_dump) {
-		g_printf("driver: taper failed %s %s, too many taper retry after holding disk error\n",
-		   dp->host->hostname, qname);
-		delete_sched = __LINE__;
-	    } else {
-		log_add(L_INFO, _("%s %s %s %d [Will retry dump because of holding disk error: %s]"),
-			dp->host->hostname, qname, sp->datestamp,
-			sp->level, wtaper->input_error);
-		g_printf("driver: taper will retry %s %s because of holding disk error\n",
-			dp->host->hostname, qname);
-		if (dp->to_holdingdisk != HOLD_REQUIRED) {
-		    dp->to_holdingdisk = HOLD_NEVER;
-		    sp->dump_attempted -= 1;
-		    sp->action = ACTION_DUMP_TO_TAPE;
-		    headqueue_sched(&directq, sp);
-		} else {
-		  delete_sched = __LINE__;
-		}
-	    }
+    if (wtaper->input_error || wtaper->tape_error) {
+        char *e_source;
+	char *e_msg;
+	if (wtaper->input_error) {
+	  e_source = "holding disk";
+	  e_msg = wtaper->input_error;
 	} else {
-	  delete_sched = __LINE__;
+	  e_source = "tape";
+	  e_msg = wtaper->tape_error;
 	}
-    } else if (wtaper->tape_error) {
-	g_printf("driver: taper failed %s %s with tape error: %s\n",
-		   dp->host->hostname, qname, wtaper->tape_error);
-	if (sp->taper_attempted >= dp->retry_dump) {
-	    g_printf("driver: taper failed %s %s, too many taper retry\n",
-		   dp->host->hostname, qname);
-	    delete_sched = __LINE__;
-	} else {
-	    char *wall_time = walltime_str(curclock());
-	    g_printf("driver: taper will retry %s %s\n",
-		   dp->host->hostname, qname);
-	    /* Re-insert into taper queue. */
-	    {
-	      static gboolean debugwait = 1;
-	      while (debugwait) {
-		sleep(60);
+        taper_error = handle_taper_error(wtaper, "filing");
+	if (taper_error == TAPER_ERROR_RETRY) {
+	  /* Why this check? Shouldn't this be happening elsewhere? */
+	  if (g_str_equal(sp->datestamp, driver_timestamp)) {
+	    retry = TRUE;
+	    log_add(L_INFO, _("%s %s %s %d [Will retry dump because of %s error: %s]"),
+		    dp->host->hostname, qname, sp->datestamp,
+		    sp->level, e_source, e_msg);
+	    g_printf("driver: taper will retry %s %s because of %s error: %s\n",
+		     dp->host->hostname, qname, e_source, e_msg);
+	    /* Is this an input error (xfer to taper), or a taper error? */
+	    if (wtaper->input_error) {
+	      /* Why can't we use the current to_holdingdisk?
+	       * Is this an attempt to bypass the holding disk and dump
+	       *  directly to tape. If so, is this really sll that's required?
+	       */
+	      if (dp->to_holdingdisk != HOLD_REQUIRED) {
+		dp->to_holdingdisk = HOLD_NEVER;
+		sp->dump_attempted -= 1;
+		sp->action = ACTION_DUMP_TO_TAPE;
+		headqueue_sched(&directq, sp);
+	      } else {
+		/* HOLD_REQUIRED - we can't retry. */
+		delete_sched = __LINE__;
 	      }
+	    } else {
+	      /* taper error. */
+	      char *wall_time = walltime_str(curclock());
+	      g_printf("driver: taper will retry %s %s\n",
+		       dp->host->hostname, qname);
+	      /* Re-insert into taper queue. */
+	      /* Again, why are we altering the schedule action? */
+	      sp->action = ACTION_FLUSH;
+	      g_printf("driver: requeue write time %s %s %s %s %s\n", wall_time, sp->disk->host->hostname, qname, sp->datestamp, wtaper->taper->storage_name);
+	      headqueue_sched(&wtaper->taper->tapeq, sp);
 	    }
-	    sp->action = ACTION_FLUSH;
-	    g_printf("driver: requeue write time %s %s %s %s %s\n", wall_time, sp->disk->host->hostname, qname, sp->datestamp, wtaper->taper->storage_name);
-	    headqueue_sched(&wtaper->taper->tapeq, sp);
+	  } else {
+	    /* timestamp mismatch - shouldn't we report this? */
+	    delete_sched = __LINE__;
+	  }
+	} else {
+	  /* Can't retry. Do we need to fail the taper or just the schedule? */
+	  if (taper_error & TAPER_ERROR_FAIL_SCHED) {
+	    delete_sched = __LINE__;
+	  }
+	  if (taper_error & TAPER_ERROR_FAIL_TAPER) {
+	    delete_sched = fail_taper = __LINE__;
+	  }
 	}
     } else if (wtaper->result != DONE) {
+        /* We need more info here. */
 	g_printf("driver: taper failed %s %s without error\n",
 		   dp->host->hostname, qname);
     } else {
+        /* We're done. */
 	cmddata_t *cmddata;
         time_t     now = time(NULL);
 	char      *holding_file;
@@ -3258,44 +3317,10 @@ file_taper_result(
 	    holding_file = g_strdup(cmddata->holding_file);
 	    cmddatas = remove_cmd_in_cmdfile(cmddatas, sp->command_id);
 
-	    /* this code is duplicated in dumper_taper_result  and vault_taper_result */
-	    /* Add COPY */
 	    if (taper->storage_name) {
-		storage_t *storage = lookup_storage(taper->storage_name);
-		if (storage) {
-		    vault_list_t vl = storage_get_vault_list(storage);
-		    for (; vl != NULL; vl = vl->next) {
-			vault_el_t *v = vl->data;
-			if (dump_match_selection(v->storage, sp) &&
-			    !dump_storage_hash_exist(dump_storage_hash,
-				dp->host->hostname, dp->name, sp->datestamp,
-				sp->level, v->storage) &&
-			    !cmdfile_get_nb_image_cmd_for_storage(cmddatas,
-				dp->host->hostname, dp->name, sp->datestamp,
-				sp->level, v->storage)) {
-			    cmddata_t *cmddata = g_new0(cmddata_t, 1);
-			    cmddata->operation = CMD_COPY;
-			    cmddata->config = g_strdup(get_config_name());
-			    cmddata->src_storage = g_strdup(taper->storage_name);
-			    cmddata->src_pool = g_strdup(storage_get_tapepool(storage));
-			    cmddata->src_label = g_strdup(wtaper->first_label);
-			    cmddata->src_fileno = wtaper->first_fileno;
-			    cmddata->src_labels_str = g_strdup(wtaper->dst_labels_str);
-			    cmddata->src_labels = wtaper->dst_labels;
-			    wtaper->dst_labels = NULL;
-			    cmddata->holding_file = NULL;
-			    cmddata->hostname = g_strdup(dp->host->hostname);
-			    cmddata->diskname = g_strdup(dp->name);
-			    cmddata->dump_timestamp = g_strdup(sp->datestamp);
-			    cmddata->level = sp->level;
-			    cmddata->dst_storage = g_strdup(v->storage);
-			    cmddata->working_pid = getppid();
-			    cmddata->status = CMD_TODO;
-			    cmddata->start_time = now + v->days * 60*60*24;
-			    cmddatas = add_cmd_in_cmdfile(cmddatas, cmddata);
-			    // JLM Should call cmdfile_vault
-			}
-		    }
+	        cmddata_t *cmddata = update_cmd_file_storage(sp, wtaper, cmddatas);
+		if (cmddata) {
+		    cmddatas = add_cmd_in_cmdfile(cmddatas, cmddata);
 		}
 	    }
 
@@ -3305,25 +3330,31 @@ file_taper_result(
 	    free_sched(sp);
 	    sp = NULL;
 	    g_free(holding_file);
-	};
+	}
     }
 
     amfree(qname);
 
-    wtaper->state &= ~TAPER_STATE_FILE_TO_TAPE;
+    /* Clear the active transfer state. */
+    wtaper->state &= ~TAPER_STATE_ACTIVE_XFER;
     if (!(wtaper->state & (TAPER_STATE_WAIT_CLOSED_VOLUME|TAPER_STATE_WAIT_CLOSED_SOURCE_VOLUME))) {
 	wtaper->state |= TAPER_STATE_IDLE;
     }
-    if (delete_sched) {
-      remove_sched(&taper->tapeq, sp);
-      free_sched(sp);
+    if (!retry) {
+      if (delete_sched) {
+	remove_sched(&taper->tapeq, sp);
+	free_sched(sp);
+      }
+      free_serial_job(job);
+      free_job(job);
+      wtaper->job = NULL;
+      amfree(wtaper->input_error);
+      amfree(wtaper->tape_error);
+      if (fail_taper) {
+	taper->down = 1;
+	g_list_free_full(taper->tapeq.head, free_sched);
+      }
     }
-    free_serial_job(job);
-    free_job(job);
-    wtaper->job = NULL;
-    amfree(wtaper->input_error);
-    amfree(wtaper->tape_error);
-    taper->nb_wait_reply--;
 
     /* continue with those dumps waiting for diskspace */
     continue_port_dumps();
@@ -3389,49 +3420,15 @@ dumper_taper_result(
 
     if (dumper->result == DONE && wtaper->result == DONE) {
 	time_t now = time(NULL);
-	/* this code is duplicated in file_taper_result and vault_taper_result*/
-	/* Add COPY */
+
 	if (taper->storage_name) {
-	    storage_t *storage = lookup_storage(taper->storage_name);
-	    if (storage) {
-		vault_list_t vl = storage_get_vault_list(storage);
-		for (; vl != NULL; vl = vl->next) {
-		    vault_el_t *v = vl->data;
-		    if (dump_match_selection(v->storage, sp) &&
-			!dump_storage_hash_exist(dump_storage_hash,
-				dp->host->hostname, dp->name, sp->datestamp,
-				sp->level, v->storage) &&
-			!cmdfile_get_nb_image_cmd_for_storage(cmddatas,
-				dp->host->hostname, dp->name, sp->datestamp,
-				sp->level, v->storage)) {
-			cmddata_t *cmddata = g_new0(cmddata_t, 1);
-			cmddata->operation = CMD_COPY;
-			cmddata->config = g_strdup(get_config_name());
-			cmddata->src_storage = g_strdup(taper->storage_name);
-			cmddata->src_pool = g_strdup(storage_get_tapepool(storage));
-			cmddata->src_label = g_strdup(wtaper->first_label);
-                        cmddata->src_fileno = wtaper->first_fileno;
-			cmddata->src_labels_str = g_strdup(wtaper->dst_labels_str);
-			cmddata->src_labels = wtaper->dst_labels;
-			wtaper->dst_labels = NULL;
-			cmddata->holding_file = NULL;
-			cmddata->hostname = g_strdup(dp->host->hostname);
-			cmddata->diskname = g_strdup(dp->name);
-			cmddata->dump_timestamp = g_strdup(sp->datestamp);
-			cmddata->level = sp->level;
-			cmddata->dst_storage = g_strdup(v->storage);
-			cmddata->working_pid = getppid();
-			cmddata->status = CMD_TODO;
-			cmddata->start_time = now + v->days * 60*60*24;
-			cmddatas = add_cmd_in_cmdfile(cmddatas, cmddata);
-			// JLM Should call cmdfile_vault
-		    }
-		}
+	  cmddata_t *cmddata = update_cmd_file_storage(sp, wtaper, cmddatas);
+	    if (cmddata) {
+	      cmddatas = add_cmd_in_cmdfile(cmddatas, cmddata);
 	    }
 	}
     }
 
-    taper->nb_wait_reply--;
     wtaper->state &= ~TAPER_STATE_DUMP_TO_TAPE;
     if (!(wtaper->state & (TAPER_STATE_WAIT_CLOSED_VOLUME|TAPER_STATE_WAIT_CLOSED_SOURCE_VOLUME))) {
 	wtaper->state |= TAPER_STATE_IDLE;
@@ -3470,9 +3467,7 @@ idle_taper(taper_t *taper)
 	    (wtaper->state & TAPER_STATE_TAPE_STARTED) &&
 	    (wtaper->vaultqs.vaultq.head == NULL) &&
 	    !(wtaper->state & TAPER_STATE_DONE) &&
-	    !(wtaper->state & TAPER_STATE_FILE_TO_TAPE) &&
-	    !(wtaper->state & TAPER_STATE_DUMP_TO_TAPE) &&
-	    !(wtaper->state & TAPER_STATE_VAULT_TO_TAPE))
+	    !(wtaper->state & TAPER_STATE_ACTIVE_XFER))
 	    return wtaper;
     }
 
@@ -3484,7 +3479,7 @@ idle_taper(taper_t *taper)
 	    (wtaper->state & TAPER_STATE_RESERVATION) &&
 	    (wtaper->vaultqs.vaultq.head == NULL) &&
 	    !(wtaper->state & TAPER_STATE_DONE) &&
-	    !(wtaper->state & TAPER_STATE_FILE_TO_TAPE) &&
+	    !(wtaper->state & TAPER_STATE_ACTIVE_XFER) &&
 	    !(wtaper->state & TAPER_STATE_DUMP_TO_TAPE) &&
 	    !(wtaper->state & TAPER_STATE_VAULT_TO_TAPE))
 	    return wtaper;
@@ -3497,9 +3492,7 @@ idle_taper(taper_t *taper)
 	if ((wtaper->state & TAPER_STATE_IDLE) &&
 	    (wtaper->vaultqs.vaultq.head == NULL) &&
 	    !(wtaper->state & TAPER_STATE_DONE) &&
-	    !(wtaper->state & TAPER_STATE_FILE_TO_TAPE) &&
-	    !(wtaper->state & TAPER_STATE_DUMP_TO_TAPE) &&
-	    !(wtaper->state & TAPER_STATE_VAULT_TO_TAPE))
+	    !(wtaper->state & TAPER_STATE_ACTIVE_XFER))
 	    return wtaper;
     }
     return NULL;
@@ -5533,9 +5526,7 @@ short_dump_state(const char *module, const char *suffix)
 		for(wtaper = taper->wtapetable;
 		    wtaper < taper->wtapetable + taper->nb_worker;
 		    wtaper++) {
-		    if (wtaper->state & TAPER_STATE_DUMP_TO_TAPE ||
-			wtaper->state & TAPER_STATE_FILE_TO_TAPE ||
-			wtaper->state & TAPER_STATE_VAULT_TO_TAPE)
+		  if (wtaper->state & TAPER_STATE_ACTIVE_XFER)
 			writing = 1;
 		}
 	    }
@@ -5666,9 +5657,7 @@ tape_action(
     for (wtaper1 = taper->wtapetable;
 	 wtaper1 < taper->wtapetable + taper->nb_worker;
 	 wtaper1++) {
-	if (wtaper1->state & TAPER_STATE_FILE_TO_TAPE ||
-	    wtaper1->state & TAPER_STATE_DUMP_TO_TAPE ||
-	    wtaper1->state & TAPER_STATE_VAULT_TO_TAPE) {
+      if (wtaper1->state & TAPER_STATE_ACTIVE_XFER) {
 	    nb_wtaper_flushing++;
 	}
 	if (wtaper1->state & TAPER_STATE_TAPE_STARTED &&
@@ -5814,7 +5803,7 @@ tape_action(
 	driver_debug(2, "tape_action: TAPER_STATE_TAPE_REQUESTED\n");
 	if (taper->current_tape >= taper->runtapes &&
 	    taper->nb_scan_volume == 0 &&
-	    nb_wtaper_active == 0 && taper->sent_first_write == NULL) {
+	    taper->sent_first_write == NULL) {
 	    *why_no_new_tape = g_strdup_printf(_("%d tapes filled; runtapes=%d "
 		"does not allow additional tapes"), taper->current_tape,
 		taper->runtapes);
@@ -5838,6 +5827,8 @@ tape_action(
 	} else if (nb_wtaper_waiting > 0 && wtaper->allow_take_scribe_from) {
 	    driver_debug(2, "tape_action: TAPER_STATE_TAPE_REQUESTED return TAPE_ACTION_MOVE (nb_wtaper_waiting)\n");
 	    result |= TAPE_ACTION_MOVE;
+	} else {
+	    driver_debug(2, "tape_action: TAPER_STATE_TAPE_REQUESTED returns default\n");
 	}
     } else if (wtaper->state & TAPER_STATE_WAIT_FOR_TAPE) {
 	if ((wtaper->state & TAPER_STATE_DUMP_TO_TAPE) ||	// for dump to tape
@@ -6016,25 +6007,24 @@ no_taper_active(void)
   static char * fname = "no_taper_active";
     taper_t  *taper;
     wtaper_t *wtaper;
-    TaperState taper_active = TAPER_STATE_DUMP_TO_TAPE
-      | TAPER_STATE_FILE_TO_TAPE
-      | TAPER_STATE_VAULT_TO_TAPE;
 
     for (taper = tapetable; taper < tapetable + nb_storage; taper++) {
 	if (taper->storage_name && !taper->down) {
-	    if (taper->nb_wait_reply) {
-	        g_debug("%s: taper %d: nb_wait_reply %d", fname,
-			(int)(taper - tapetable), taper->nb_wait_reply);
-		return FALSE;
-	    }
 	    for (wtaper = taper->wtapetable;
 		wtaper < taper->wtapetable + taper->nb_worker;
 		wtaper++) {
+	      if (wtaper->wait_reply) {
+	        g_debug("%s: taper %d.%d: wait_reply %d", fname,
+			(int)(taper - tapetable),
+			(int)(wtaper - taper->wtapetable),
+			wtaper->wait_reply);
+		return FALSE;
+	      }
 	      g_debug("%s: taper %d.%d: %s", fname,
 		      (int)(taper - tapetable), (int)(wtaper - taper->wtapetable),
 		      wtaper_state_to_string(wtaper));
 
-	      if (wtaper->state & taper_active) {
+	      if (wtaper->state & TAPER_STATE_ACTIVE_XFER) {
 		return FALSE;
 	      }
 	    }
