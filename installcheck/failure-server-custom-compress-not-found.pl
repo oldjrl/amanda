@@ -384,6 +384,7 @@ localhost    diskname2   0                    --      PARTIAL
 END_REPORT
 
 check_amreport($report, $timestamp, "amreport first amdump", 1, 1);
+Installcheck::Run::preserve_run_on_failure();	# squirrel away test data on error
 
 # amstatus
 
@@ -424,6 +425,7 @@ chunker0 busy   : 00:00:00  ( 83.54%)
 END_STATUS
 
 check_amstatus($status, $tracefile, "amstatus first amdump");
+Installcheck::Run::preserve_run_on_failure();	# squirrel away test data on error
 
 #diag("reply: " . Data::Dumper::Dumper($reply));
 #$rest->stop();
