@@ -79,9 +79,14 @@ our $TMP = "$AMANDA_TMPDIR/installchecks";
 # the Makefile provides srcdir to us in most cases; if not, assume it's "."
 our $srcdir = $ENV{'srcdir'} || '.';
 
+our $run_setup_start_time;
+our $run_setup_start_timestamp;
+
 # run this just before the script actually executes
 # (not during syntax checks)
 INIT {
+    $run_setup_start_time = time();
+    $run_setup_start_timestamp = Amanda::Util::generate_timestamp();
     Amanda::Util::set_pname(basename("$0"));
     mkpath($TMP);
 }

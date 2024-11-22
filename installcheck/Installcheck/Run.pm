@@ -199,13 +199,8 @@ our $diskname = "$Installcheck::TMP/backmeup";
 our $taperoot = "$Installcheck::TMP/vtapes";
 our $holdingdir ="$Installcheck::TMP/holding";
 
-my $run_setup_start_time;
-my $run_setup_start_timestamp;
-
 sub setup {
     my $nb_slot = shift;
-    $run_setup_start_time = time();
-    $run_setup_start_timestamp = Amanda::Util::generate_timestamp();
     my $testconf = Installcheck::Config->new();
 
     $nb_slot = 3 if !defined $nb_slot;
@@ -788,20 +783,20 @@ sub preserve_run_on_failure()
 	    qr(/*.*/?) => 0,		# default, don't copy anything
 	    qr(installchecks/) => {
 		qr(((holding)|(infodir)|(vtapes.*)|(TESTCONF))/) => {	# anything under holding, infodir, vtapes*, TESTCONF in tmp/installchecks
-		    qr(/*.*/?) => 'modified_between($self, $sfpath, ' . $run_setup_start_time . ', undef)'
+		    qr(/*.*/?) => 'modified_between($self, $sfpath, ' . $Installcheck::run_setup_start_time . ', undef)'
 		}
 	    },
 	    qr(((server)|(client)|(amandad)|(log.error))/) => {	# anything under server, client, amandad, log.error in tmp
-		qr(/*.*/?) => 'modified_between($self, $sfpath, ' . $run_setup_start_time . ', undef)'
+		qr(/*.*/?) => 'modified_between($self, $sfpath, ' . $Installcheck::run_setup_start_time . ', undef)'
 	    }
 	    );
 	my %cores = (
 	    qr(/*.*/?) => 0,		# default, don't copy anything
-	    qr(/*.+\.core) => 'modified_between($self, $sfpath, ' . $run_setup_start_time . ', undef)'
+	    qr(/*.+\.core) => 'modified_between($self, $sfpath, ' . $Installcheck::run_setup_start_time . ', undef)'
 	    );
-	copy_dir_selected("$cfgdir", $dbgdir . "config.$run_setup_start_timestamp", \%cfg);
-	copy_dir_selected("$tmpdir/", $dbgdir . "cores.$run_setup_start_timestamp", \%cores);
-	copy_dir_selected("$tmpdir/", $dbgdir . "tmp.$run_setup_start_timestamp", \%tmp);
+	copy_dir_selected("$cfgdir", $dbgdir . "config.$Installcheck::run_setup_start_timestamp", \%cfg);
+	copy_dir_selected("$tmpdir/", $dbgdir . "cores.$Installcheck::run_setup_start_timestamp", \%cores);
+	copy_dir_selected("$tmpdir/", $dbgdir . "tmp.$Installcheck::run_setup_start_timestamp", \%tmp);
     }
 }
 1;
