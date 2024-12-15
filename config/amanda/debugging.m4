@@ -169,7 +169,7 @@ AC_DEFUN([AMANDA_DEBUG_XFER_REF],
 		    AMANDA_MSG_WARN([--enable-debug-xfer-ref ($NEW_DEBUG_XFER_REF) different from specified DEBUG_XFER_REF ($DEBUG_XFER_REF) - ignoring former])
 		fi
 	    ], [])
-    if test $DEBUG_XFER_REF -ne 0; then
+    if test "x$DEBUG_XFER_REF" != "x" && test $DEBUG_XFER_REF -ne 0; then
 	AC_DEFINE([DEBUG_XFER_REF])
 	AMANDA_MSG_WARN([--enable-debug-xfer-ref should only be used by developers])
     fi
