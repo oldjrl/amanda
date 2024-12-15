@@ -213,27 +213,37 @@ sub create_holding {
     }
     return;
   }
-    my $div=1;
-    my $out = `df -k $amandastatedir`;
-    my @dfout = split(" " , $out);
-    unless ( $#dfout == 12 ) {	# df should output 12 elem
-	&mprint ("WARNING: df failed, holding disk directory not created\n");
-	$holding_err++;
-	return;
-    }
-    unless (( $dfout[1] eq "1K-blocks" ) || ( $dfout[1] eq "kbytes")) {
-         $div=2;	# 512-blocks displayed by df
-     }
+  my $free_kblocks = 0;
+  # Try the "built-in" way first.
+  my $fs_usage = Amanda::Util::get_fs_usage($amandastatedir);
+  if ($fs_usage && $fs_usage->{"blocksize"} > 0) {
+      if (!$fs_usage->{"bavail_top_bit_set"}) {
+	  $free_kblocks = $fs_usage->{"bavail"} / 1024 * $fs_usage->{"blocksize"};
+      }
+  } else {
+      my $div=1;
+      my $out = `df -k $amandastatedir`;
+      my @dfout = split(" " , $out);
+      unless ( $#dfout == 12 ) {	# df should output 12 elem
+	  &mprint ("WARNING: df failed, holding disk directory not created\n");
+	  $holding_err++;
+	  return;
+      }
+      unless (( $dfout[1] eq "1K-blocks" ) || ( $dfout[1] eq "kbytes")) {
+	  $div=2;	# 512-blocks displayed by df
+      }
+      $free_kblocks = $dfout[10] / $div;
+  }
     
-    if (( $dfout[10] / $div )  > 1024000 ) { # holding disk is defined 1000 MB
-	&mprint ("creating holding disk directory\n");
-	unless ( -d "$amandastatedir/holdings" ) { 
-	mkpath ( "$amandastatedir/holdings", $def_perm) ||
-	    (&mprint ("WARNING: mkpath $amandastatedir/holdings failed: $!\n"), $holding_err++, return );
-    }
-	mkpath ( "$amandastatedir/holdings/$config", $def_perm) ||
-	    (&mprint ("WARNING: mkpath $amandastatedir/holdings/$config failed: $!\n"), $holding_err++, return) ;
-    }
+  if ($free_kblocks > 1024000 ) { # holding disk is defined 1000 MB
+      &mprint ("creating holding disk directory\n");
+      unless ( -d "$amandastatedir/holdings" ) { 
+	  mkpath ( "$amandastatedir/holdings", $def_perm) ||
+	      (&mprint ("WARNING: mkpath $amandastatedir/holdings failed: $!\n"), $holding_err++, return );
+      }
+      mkpath ( "$amandastatedir/holdings/$config", $def_perm) ||
+	  (&mprint ("WARNING: mkpath $amandastatedir/holdings/$config failed: $!\n"), $holding_err++, return) ;
+  }
 }
 
 #create default tape dir
