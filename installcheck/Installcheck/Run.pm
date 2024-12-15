@@ -535,6 +535,17 @@ sub run_expect {
 sub amdump_diag {
     my ($msg) = @_;
 
+    # We're here due to a failure.
+    # Ensure $stdout and $stderr are reported.
+    my $detail = '';
+    if ($stderr) {
+        $detail .= "\nstderr is:\n$stderr";
+    } else {
+        if ($stdout and length($stdout) < 1024) {
+            $detail .= "\nstdout is:\n$stdout";
+        }
+    }
+
     # try running amreport
     my $report = "failure-report.txt";
     unlink($report);
@@ -565,6 +576,7 @@ sub amdump_diag {
     Test::More::diag("no amreport available, and no config errors");
 
 bail:
+    Test::More::diag("run unexpectedly failed; no output to compare$detail");
     if ($msg) {
 	Test::More::BAIL_OUT($msg);
     } else {
