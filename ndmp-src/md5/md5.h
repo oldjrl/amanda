@@ -58,14 +58,38 @@ If using PROTOTYPES, then PROTO_LIST returns the list, otherwise it
 #define PROTO_LIST(list) ()
 #endif
 
-/* MD5 context. */
+#if AMANDA_MD5_PKG_ENUM == 4	/* AMANDA_MD5_SASL */
+#include <sasl/md5.h>
+/* Use the supplied definitions of MD5_CTX and te Init, Update, and Final functions */
+#define NDML_MD5Init _sasl_MD5Init
+#define NDML_MD5Update _sasl_MD5Update
+#define NDML_MD5Final _sasl_MD5Final
+#elif AMANDA_MD5_PKG_ENUM == 3	/* AMANDA_MD5_OPENSSL */
+#include <openssl/md5.h>
+/* Use the supplied definitions of MD5_CTX and te Init, Update, and Final functions */
+#define NDML_MD5Init MD5_Init
+#define NDML_MD5Update MD5_Update
+#define NDML_MD5Final MD5_Final
+#elif AMANDA_MD5_PKG_ENUM == 0	/* AMANDA_MD5_DEFAULT */
+/* Use the host/system supplied definitions of MD5_CTX and te Init, Update, and Final functions */
+#define NDML_MD5Init MD5Init
+#define NDML_MD5Update MD5Update
+#define NDML_MD5Final MD5Final
+#elif AMANDA_MD5_PKG_ENUM == 2	/* AMANDA_MD5_AMANDA */
+
+/* Use built in MD5 context */
 typedef struct {
   UINT4 state[4];                                   /* state (ABCD) */
   UINT4 count[2];        /* number of bits, modulo 2^64 (lsb first) */
   unsigned char buffer[64];                         /* input buffer */
+  unsigned int num;
 } MD5_CTX;
 
-void MD5Init PROTO_LIST ((MD5_CTX *));
-void MD5Update PROTO_LIST
+void NDML_MD5Init PROTO_LIST ((MD5_CTX *));
+void NDML_MD5Update PROTO_LIST
   ((MD5_CTX *, unsigned char *, unsigned int));
-void MD5Final PROTO_LIST ((unsigned char [16], MD5_CTX *));
+void NDML_MD5Final PROTO_LIST ((unsigned char [16], MD5_CTX *));
+
+#else
+#error "No recognized MD5 provider"
+#endif

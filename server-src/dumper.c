@@ -175,6 +175,9 @@ static int disable_network_shm = -1;
 #endif
 
 static int dump_result;
+static int dump_cancelled = 0;
+static event_handle_t *dump_done = NULL;	// Signal event loop to terminate
+
 static int status;
 #define	GOT_INFO_ENDLINE	(1 << 0)
 #define	GOT_SIZELINE		(1 << 1)
@@ -185,7 +188,7 @@ static int status;
 
 static struct {
     const char *name;
-    security_stream_t *fd;
+    struct sec_stream *fd;
 } streams[] = {
 #define	DATAFD	0
     { "DATA", NULL },
@@ -235,7 +238,8 @@ static int	startup_dump(const char *, const char *, const char *, int,
 			const char *, const char *, const char *,
 			const char *, const char *, const char *,
 			const char *, const char *);
-static void	stop_dump(void);
+static void	stop_dump(int line);
+static void	cleanup_dump(void);
 
 static void	read_indexfd(void *, void *, ssize_t);
 static void	read_datafd(void *, void *, ssize_t);
@@ -247,6 +251,7 @@ static void	retimeout(time_t);
 static void	timeout_callback(void *unused);
 static gpointer handle_shm_ring_to_fd_thread(gpointer data);
 static gpointer handle_shm_ring_direct(gpointer data);
+static void	setup_errout(void);
 
 static void
 check_options(
@@ -802,6 +807,9 @@ main(
 	    }
 #endif
 
+	    /* Ensure we're ready to report errors. */
+	    setup_errout();
+
 	    rc = startup_dump(hostname,
 			      diskname,
 			      device,
@@ -1230,7 +1238,7 @@ process_dumpline(
 	    } else {
 		retry_message = g_strdup("\"No message\"");
 	    }
-            stop_dump();
+            stop_dump(__LINE__);
 	    break;
 	}
 
@@ -1537,34 +1545,21 @@ write_tapeheader(
 
 int indexout = -1;
 
-static int
-do_dump(
-    struct databuf *db)
+static void
+setup_errout(void)
 {
-    char *indexfile_tmp = NULL;
-    char *indexfile_real = NULL;
-    char level_str[NUM_STR_SIZE];
-    char *time_str;
     char *fn;
-    char *q;
-    times_t runtime;
-    double dumptime;	/* Time dump took in secs */
-    pid_t indexpid = -1;
-    char *m;
-    int to_unlink = 1;
-
-    startclock();
-
-    if (msg.buf) msg.buf[0] = '\0';	/* reset msg buffer */
-    fh_init(&file);
+    char *time_str;
+    char level_str[NUM_STR_SIZE];
 
     g_snprintf(level_str, sizeof(level_str), "%d", level);
+
     time_str = get_timestamp_from_time(0);
     fn = sanitise_filename(diskname);
     errf_lines = 0;
 
     g_free(errfname);
-    errfname = g_strconcat(AMANDA_DBGDIR, "/log.error", NULL);
+    errfname = g_strconcat(get_dbgdir(), "/log.error", NULL);
 
     if (mkdir(errfname, 0700) == -1) {
 	if (errno != EEXIST) {
@@ -1572,12 +1567,11 @@ do_dump(
 	    errstr = g_strdup_printf("Create directory \"%s\": %s",
 				     errfname, strerror(errno));
 	    amfree(errfname);
-	    goto failed;
 	}
     }
 
     g_free(errfname);
-    errfname = g_strconcat(AMANDA_DBGDIR, "/log.error/", hostname, ".", fn, ".",
+    errfname = g_strconcat(get_dbgdir(), "/log.error/", hostname, ".", fn, ".",
         level_str, ".", time_str, ".errout", NULL);
 
     amfree(fn);
@@ -1587,8 +1581,28 @@ do_dump(
 	errstr = g_strdup_printf("errfile open \"%s\": %s",
                                  errfname, strerror(errno));
 	amfree(errfname);
-	goto failed;
+	errf = fdopen(2, "w+");
     }
+}
+
+static int
+do_dump(
+    struct databuf *db)
+{
+    char *indexfile_tmp = NULL;
+    char *indexfile_real = NULL;
+    char *q;
+    times_t runtime;
+    double dumptime;	/* Time dump took in secs */
+    pid_t indexpid = -1;
+    char *m;
+    int to_unlink = 1;
+    int i;
+
+    startclock();
+
+    if (msg.buf) msg.buf[0] = '\0';	/* reset msg buffer */
+    fh_init(&file);
 
     state_filename = getstatefname(hostname, diskname, dumper_timestamp, level);
     state_filename_gz = g_strdup_printf("%s%s", state_filename,
@@ -1702,12 +1716,19 @@ do_dump(
 	g_mutex_unlock(shm_thread_mutex);
     }
 
+    /* Create an event we can use to terminate the process
+       once all dumps are complete.
+       The event won't be triggered. Its release is what will
+       break out of the main loop, so we don't need either the
+       function or data arguments.
+    */
+    dump_done = event_create(0, EV_WAIT, NULL, NULL);
     /*
      * Start the event loop.  This will exit when all five events
      * (read the mesgfd, read the datafd, read the indexfd, read the statefd,
-     *  and timeout) are removed.
+     *  and timeout) are removed, or dump_done is release.
      */
-    event_loop(0);
+    event_wait(dump_done);
 
     if (shm_thread) {
 	g_mutex_lock(shm_thread_mutex);
@@ -1722,6 +1743,8 @@ do_dump(
 	G_COND_FREE(shm_thread_cond);
 	shm_thread_cond  = NULL;
     }
+
+    cleanup_dump();
 
     if (ISSET(status, GOT_RETRY)) {
 	if (indexfile_tmp) {
@@ -2093,7 +2116,7 @@ handle_shm_ring_to_fd_thread(
 		errstr = g_strdup("write_tapeheader: no dataport_list");
 		dump_result = 2;
 		amfree(data_host);
-		stop_dump();
+		stop_dump(__LINE__);
 		g_cond_broadcast(shm_thread_cond);
 		g_mutex_unlock(shm_thread_mutex);
 		return NULL;
@@ -2125,7 +2148,7 @@ handle_shm_ring_to_fd_thread(
 		}
 		dump_result = 2;
 		amfree(data_host);
-		stop_dump();
+		stop_dump(__LINE__);
 		g_cond_broadcast(shm_thread_cond);
 		g_mutex_unlock(shm_thread_mutex);
 		return NULL;
@@ -2139,7 +2162,7 @@ handle_shm_ring_to_fd_thread(
 		if (runencrypt(db->fd, &db->encryptpid, srvencrypt, "data encrypt") < 0) {
 		    dump_result = 2;
 		    aclose(db->fd);
-		    stop_dump();
+		    stop_dump(__LINE__);
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
 		    return NULL;
@@ -2154,7 +2177,7 @@ handle_shm_ring_to_fd_thread(
 		if (runcompress(db->fd, &db->compresspid, srvcompress, "data compress") < 0) {
 		    dump_result = 2;
 		    aclose(db->fd);
-		    stop_dump();
+		    stop_dump(__LINE__);
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
 		    return NULL;
@@ -2178,7 +2201,7 @@ handle_shm_ring_to_fd_thread(
 		    sem_post(db->shm_ring_consumer->sem_write);
 		    dump_result = 2;
 		    aclose(db->fd);
-		    stop_dump();
+		    stop_dump(__LINE__);
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
 		    return NULL;
@@ -2197,7 +2220,7 @@ handle_shm_ring_to_fd_thread(
 		    sem_post(db->shm_ring_consumer->sem_write);
 		    dump_result = 2;
 		    aclose(db->fd);
-		    stop_dump();
+		    stop_dump(__LINE__);
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
 		    return NULL;
@@ -2211,7 +2234,7 @@ handle_shm_ring_to_fd_thread(
 		    sem_post(db->shm_ring_consumer->sem_write);
 		    dump_result = 2;
 		    aclose(db->fd);
-		    stop_dump();
+		    stop_dump(__LINE__);
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
 		    return NULL;
@@ -2257,7 +2280,7 @@ handle_shm_ring_direct(
     if (shm_ring_sem_wait(db->shm_ring_direct, db->shm_ring_direct->sem_ready) != 0) {
 	g_mutex_lock(shm_thread_mutex);
 	dump_result = 2;
-        stop_dump();
+        stop_dump(__LINE__);
         goto shm_done;
     }
     g_mutex_lock(shm_thread_mutex);
@@ -2270,7 +2293,7 @@ handle_shm_ring_direct(
 //	errstr = g_strdup("write_tapeheader: no dataport_list");
 //	dump_result = 2;
 //	amfree(data_host);
-//	stop_dump();
+//	stop_dump(__LINE__);
 //	goto shm_done;
 //    }
 //    *s = '\0';
@@ -2301,7 +2324,7 @@ handle_shm_ring_direct(
 //				 strerror(errno));
 //	dump_result = 2;
 //	amfree(data_host);
-//	stop_dump();
+//	stop_dump(__LINE__);
 //	goto shm_done;
 //    }
 //    amfree(data_host);
@@ -2346,7 +2369,7 @@ read_statefd(
                                      security_stream_geterror(streams[STATEFD].fd));
 	}
 	dump_result = 2;
-	stop_dump();
+	stop_dump(__LINE__);
 	if (shm_thread) {
 	    g_cond_broadcast(shm_thread_cond);
 	    g_mutex_unlock(shm_thread_mutex);
@@ -2374,7 +2397,7 @@ read_statefd(
 	if ((set_datafd == 0 || streams[DATAFD].fd == NULL) &&
 	    streams[INDEXFD].fd == NULL &&
 	    streams[MESGFD].fd == NULL) {
-	    stop_dump();
+	    stop_dump(__LINE__);
 	}
 	if (shm_thread) {
 	    g_cond_broadcast(shm_thread_cond);
@@ -2436,7 +2459,7 @@ read_mesgfd(
                                      security_stream_geterror(streams[MESGFD].fd));
 	}
 	dump_result = 2;
-	stop_dump();
+	stop_dump(__LINE__);
 	if (shm_thread) {
 	    g_cond_broadcast(shm_thread_cond);
 	    g_mutex_unlock(shm_thread_mutex);
@@ -2461,10 +2484,10 @@ read_mesgfd(
 	if ((set_datafd == 0 || streams[DATAFD].fd == NULL) &&
 	    streams[INDEXFD].fd == NULL &&
 	    streams[STATEFD].fd == NULL) {
-	    stop_dump();
+	    stop_dump(__LINE__);
 	}
 	if (!ISSET(status, GOT_INFO_ENDLINE)) {
-	    stop_dump();
+	    stop_dump(__LINE__);
 	}
 	if (shm_thread) {
 	    g_cond_broadcast(shm_thread_cond);
@@ -2516,7 +2539,7 @@ header_sent(
 	errstr = g_strdup_printf("write_tapeheader: %s", strerror(errno));
 	dump_result = 2;
 	aclose(db->fd);
-	stop_dump();
+	stop_dump(__LINE__);
 	return FALSE;
     }
     aclose(db->fd);
@@ -2550,7 +2573,7 @@ read_datafd(
 	}
 	dump_result = 2;
 	aclose(db->fd);
-	stop_dump();
+	stop_dump(__LINE__);
 	if (shm_thread) {
 	    g_cond_broadcast(shm_thread_cond);
 	    g_mutex_unlock(shm_thread_mutex);
@@ -2578,7 +2601,7 @@ read_datafd(
 		errstr = g_strdup("write_tapeheader: no dataport_list");
 		dump_result = 2;
 		amfree(data_host);
-		stop_dump();
+		stop_dump(__LINE__);
 		if (shm_thread) {
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
@@ -2618,7 +2641,7 @@ read_datafd(
 		    }
 		    dump_result = 2;
 		    amfree(data_host);
-		    stop_dump();
+		    stop_dump(__LINE__);
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
 		    return;
@@ -2630,7 +2653,7 @@ read_datafd(
 		    close(db->fd);
 		    dump_result = 2;
 		    amfree(data_host);
-		    stop_dump();
+		    stop_dump(__LINE__);
 		    if (shm_thread) {
 			g_cond_broadcast(shm_thread_cond);
 			g_mutex_unlock(shm_thread_mutex);
@@ -2644,7 +2667,7 @@ read_datafd(
 		    g_debug("Failed to parse indirect data output stream: %s", buffer);
 		    dump_result = 2;
 		    amfree(data_host);
-		    stop_dump();
+		    stop_dump(__LINE__);
 		    if (shm_thread) {
 			g_cond_broadcast(shm_thread_cond);
 			g_mutex_unlock(shm_thread_mutex);
@@ -2671,7 +2694,7 @@ read_datafd(
 		}
 		dump_result = 2;
 		amfree(data_host);
-		stop_dump();
+		stop_dump(__LINE__);
 		if (shm_thread) {
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
@@ -2686,7 +2709,7 @@ read_datafd(
 	    if (runencrypt(db->fd, &db->encryptpid, srvencrypt, "data encrypt") < 0) {
 		dump_result = 2;
 		aclose(db->fd);
-		stop_dump();
+		stop_dump(__LINE__);
 		if (shm_thread) {
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
@@ -2703,7 +2726,7 @@ read_datafd(
 	    if (runcompress(db->fd, &db->compresspid, srvcompress, "data compress") < 0) {
 		dump_result = 2;
 		aclose(db->fd);
-		stop_dump();
+		stop_dump(__LINE__);
 		if (shm_thread) {
 		    g_cond_broadcast(shm_thread_cond);
 		    g_mutex_unlock(shm_thread_mutex);
@@ -2741,7 +2764,7 @@ read_datafd(
 	 */
 	if (streams[MESGFD].fd == NULL && streams[INDEXFD].fd == NULL &&
 	    streams[STATEFD].fd == NULL) {
-	    stop_dump();
+	    stop_dump(__LINE__);
 	}
 	if (shm_thread) {
 	    g_cond_broadcast(shm_thread_cond);
@@ -2771,7 +2794,7 @@ read_datafd(
 	    g_free(errstr);
 	    errstr = g_strdup_printf("write to %s failed: %s", write_to, strerror(save_errno));
 	    dump_result = 2;
-	    stop_dump();
+	    stop_dump(__LINE__);
 	    if (shm_thread) {
 		g_cond_broadcast(shm_thread_cond);
 		g_mutex_unlock(shm_thread_mutex);
@@ -2800,6 +2823,7 @@ read_indexfd(
     ssize_t	size)
 {
     int fd;
+    int indexwriteerror = 0;
 
     assert(cookie != NULL);
     fd = *(int *)cookie;
@@ -2814,7 +2838,7 @@ read_indexfd(
                                      security_stream_geterror(streams[INDEXFD].fd));
 	}
 	dump_result = 2;
-	stop_dump();
+	stop_dump(__LINE__);
 	if (shm_thread) {
 	    g_cond_broadcast(shm_thread_cond);
 	    g_mutex_unlock(shm_thread_mutex);
@@ -2839,7 +2863,7 @@ read_indexfd(
 	if ((set_datafd == 0 || streams[DATAFD].fd == NULL) &&
 	     streams[MESGFD].fd == NULL &&
 	     streams[STATEFD].fd == NULL) {
-	    stop_dump();
+	    stop_dump(__LINE__);
 	}
 	aclose(indexout);
 	if (shm_thread) {
@@ -2854,11 +2878,19 @@ read_indexfd(
     /*
      * We ignore error while writing to the index file.
      */
-    if (full_write(fd, buf, (size_t)size) < (size_t)size) {
+    if ((indexwriteerror = full_write(fd, buf, (size_t)size)) < (size_t)size) {
+        char *emsg = g_strdup_printf(_("too short: %d < %ld"), indexwriteerror, size);
+	if (indexwriteerror <= 0) {
+	  emsg = strerror(errno);
+	}
+        g_debug(_("index write (%s:%s) failed: %s"), hostname, qdiskname, emsg);
 	/* Ignore error, but schedule another read. */
 	if(indexfderror == 0) {
 	    indexfderror = 1;
 	    log_add(L_INFO, _("Index corrupted for %s:%s"), hostname, qdiskname);
+	}
+	if (indexwriteerror >= 0) {
+	  g_free(emsg);
 	}
     }
 }
@@ -3033,7 +3065,7 @@ timeout_callback(
     g_free(errstr);
     errstr = g_strdup(_("data timeout"));
     dump_result = 2;
-    stop_dump();
+    stop_dump(__LINE__);
 }
 
 /*
@@ -3041,10 +3073,16 @@ timeout_callback(
  * will exit.
  */
 static void
-stop_dump(void)
+stop_dump(int line)
 {
+    static char *fname = "dumper: stop_dump (dumper.c)";
     guint i;
     struct cmdargs *cmdargs = NULL;
+
+    dump_cancelled = 1;
+
+    g_debug("%s: from %d", fname, line);
+    event_release(dump_done);
 
     /* Check if I have a pending ABORT command */
     cmdargs = get_pending_cmd();
@@ -3062,14 +3100,6 @@ stop_dump(void)
 	amfree(errstr);
 	errstr = g_strdup("Aborted by driver");
 	free_cmdargs(cmdargs);
-    }
-
-    for (i = 0; i < NSTREAMS; i++) {
-	if (streams[i].fd != NULL) {
-	    security_stream_read_cancel(streams[i].fd);
-	    security_stream_close(streams[i].fd);
-	    streams[i].fd = NULL;
-	}
     }
 
     if (dump_result > 1) {
@@ -3110,6 +3140,25 @@ stop_dump(void)
     aclose(indexout);
     aclose(g_databuf->fd);
     timeout(0);
+}
+
+/*
+ * This is called when everything needs to shut down so event_loop()
+ * will exit.
+ */
+static void
+cleanup_dump(void)
+{
+    guint i;
+
+    for (i = 0; i < NSTREAMS; i++) {
+	if (streams[i].fd != NULL) {
+	    security_stream_read_cancel(streams[i].fd);
+	    security_stream_close(streams[i].fd);
+	    streams[i].fd = NULL;
+	}
+    }
+
 }
 
 
@@ -3572,7 +3621,7 @@ parse_error:
     return;
 
 connect_error:
-    stop_dump();
+    stop_dump(__LINE__);
     *response_error = 1;
 }
 
@@ -3785,4 +3834,13 @@ startup_dump(
 
     protocol_run();
     return response_error;
+}
+
+static void
+flag_event_loop_done(int line)
+{
+  static char *fname = "dumper: flag_event_loop_done";
+
+  g_debug("%s: from %d", fname, line);
+  event_release(dump_done);
 }

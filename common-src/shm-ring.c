@@ -393,7 +393,7 @@ g_debug("close_producer_shm_ring sem_close(sem_write %p", shm_ring->sem_write);
 void
 shm_ring_to_security_stream(
     shm_ring_t *shm_ring,
-    struct security_stream_t *netfd,
+    struct sec_stream *netfd,
     crc_t *crc)
 {
     uint64_t     read_offset;

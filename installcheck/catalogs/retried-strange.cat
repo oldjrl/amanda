@@ -111,25 +111,23 @@ USAGE BY TAPE:
 
 FAILED DUMP DETAILS:
 
-/--  lead.zmanda.com /tensile-measurements lev 0 FAILED [data read: recv error: Connection timed out]
+lead.zmanda.com /tensile-measurements lev 0 FAILED [data read: recv error: Connection timed out]
 sendbackup: info BACKUP=APPLICATION
 sendbackup: info APPLICATION=amgtar
 sendbackup: info RECOVER_CMD=/usr/lib64/amanda/application/amgtar restore [./file-to-restore]+
 sendbackup: info COMPRESS_SUFFIX=.gz
 sendbackup: info end
-\\--------
 
 
 STRANGE DUMP DETAILS:
 
-/--  lead.zmanda.com /tensile-measurements lev 0 STRANGE
+lead.zmanda.com /tensile-measurements lev 0 STRANGE
 sendbackup: info BACKUP=APPLICATION
 sendbackup: info APPLICATION=amgtar
 sendbackup: info RECOVER_CMD=/usr/lib64/amanda/application/amgtar restore [./file-to-restore]+
 sendbackup: info COMPRESS_SUFFIX=.gz
 sendbackup: info end
 ? /bin/tar: ./foundry.mpg: file changed as we read it
-\\--------
 
 NOTES:
   taper: tape metals-003-000105 kb 258237053 fm 13 [OK]

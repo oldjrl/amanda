@@ -202,7 +202,7 @@ new_sv_for_xmsg(
 }
 
 %typemap(newfree) Xfer * {
-    xfer_unref($1);
+    XFER_UNREF($1);
 }
 
 %typemap(newfree) XferElement * {
@@ -248,12 +248,20 @@ new_sv_for_xmsg(
 
 %newobject xfer_new;
 Xfer *xfer_new(XferElement **elementlist, unsigned int nelements);
+#ifdef DEBUG_XFER_REF
+void xfer_unrefdb(Xfer *xfer, char *file, int line);
+#else
 void xfer_unref(Xfer *);
+#endif
 xfer_status xfer_get_status(Xfer *xfer);
 char *xfer_repr(Xfer *xfer);
 void xfer_start(Xfer *xfer, gint64 offset, gint64 size);
 void xfer_set_offset_and_size(Xfer *xfer, gint64 offset, gint64 size);
-void xfer_cancel(Xfer *xfer, char *filename, int line);
+#ifdef DEBUG_XFER_REF
+void xfer_canceldb(Xfer *xfer, char *filename, int line);
+#else
+void xfer_cancel(Xfer *xfer);
+#endif
 /* xfer_get_source is implemented below */
 
 %inline %{
@@ -326,13 +334,39 @@ sub xfer_set_callback {
 }
 %}
 
+#ifdef DEBUG_XFER_REF
 %perlcode %{
-sub xfer_debug_cancel {
+sub xfer_which_cancel {
     my ($xfer) = @_;
     my ($package, $filename, $line, $rest) = caller(1);
-    xfer_cancel($xfer, $filename, $line);
+    xfer_canceldb($xfer, $filename, $line);
 }
 %}
+#else
+%perlcode %{
+sub xfer_which_cancel {
+    my ($xfer) = @_;
+    xfer_cancel($xfer);
+}
+%}
+#endif
+
+#ifdef DEBUG_XFER_REF
+%perlcode %{
+sub xfer_which_unref {
+    my $xfer = shift;
+    my ($package, $filename, $line, $rest) = caller(1);
+    xfer_unrefdb($xfer, $filename, $line);
+}
+%}
+#else
+%perlcode %{
+sub xfer_which_unref {
+    my $xfer = shift;
+    xfer_unref($xfer);
+}
+%}
+#endif
 
 /*
  * XferElement functions
@@ -455,8 +489,9 @@ XferElement *xfer_filter_xor(
 %newobject xfer_filter_crc;
 XferElement *xfer_filter_crc(void);
 
-%newobject xfer_filter_process;
-XferElement *xfer_filter_process(
+#ifdef DEBUG_XFER_REF
+%newobject xfer_filter_processdb;
+XferElement *xfer_filter_processdb(
     gchar **argv,
     gboolean need_root,
     gboolean must_drain,
@@ -465,16 +500,35 @@ XferElement *xfer_filter_process(
     char *filename,
     int line
 );
+#else
+%newobject xfer_filter_process;
+XferElement *xfer_filter_process(
+    gchar **argv,
+    gboolean need_root,
+    gboolean must_drain,
+    gboolean cancel_on_success,
+    gboolean ignore_broken_pipe
+);
+#endif
 int filter_process_get_err_fd(
     XferElement *elt);
 
+#ifdef DEBUG_XFER_REF
 %perlcode %{
 sub xfer_filter_process_new {
     my ($argv, $need_root, $must_drain, $cancel_on_success, $ignore_broken_pipe) = @_;
     my ($package, $filename, $line, $rest) = caller(1);
-    xfer_filter_process($argv, $need_root, $must_drain, $cancel_on_success, $ignore_broken_pipe, $filename, $line);
+    xfer_filter_processdb($argv, $need_root, $must_drain, $cancel_on_success, $ignore_broken_pipe, $filename, $line);
 }
 %}
+#else
+%perlcode %{
+sub xfer_filter_process_new {
+    my ($argv, $need_root, $must_drain, $cancel_on_success, $ignore_broken_pipe) = @_;
+    xfer_filter_process($argv, $need_root, $must_drain, $cancel_on_success, $ignore_broken_pipe);
+}
+%}
+#endif
 
 %newobject xfer_dest_null;
 XferElement *xfer_dest_null(
@@ -658,7 +712,7 @@ use overload '!=' => sub { not Amanda::Xfer::same_elements($_[0], $_[1]); };
 
 PACKAGE(Amanda::Xfer::Xfer)
 DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_new);
-DECLARE_METHOD(DESTROY, Amanda::Xfer::xfer_unref);
+DECLARE_METHOD(DESTROY, Amanda::Xfer::xfer_which_unref);
 OVERLOAD_REPR()
 DECLARE_METHOD(repr, Amanda::Xfer::xfer_repr);
 DECLARE_METHOD(get_status, Amanda::Xfer::xfer_get_status);
@@ -666,7 +720,7 @@ DECLARE_METHOD(get_source, Amanda::Xfer::xfer_get_amglue_source);
 DECLARE_METHOD(start, Amanda::Xfer::xfer_start_with_callback);
 DECLARE_METHOD(set_offset_and_size, Amanda::Xfer::xfer_set_offset_and_size);
 DECLARE_METHOD(set_callback, Amanda::Xfer::xfer_set_callback);
-DECLARE_METHOD(cancel, Amanda::Xfer::xfer_debug_cancel);
+DECLARE_METHOD(cancel, Amanda::Xfer::xfer_which_cancel);
 
 /* ---- */
 

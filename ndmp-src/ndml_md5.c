@@ -65,8 +65,7 @@
 
 
 #include "ndmlib.h"
-#include "md5.h"
-
+#include "md5/md5.h"
 
 int
 ndmmd5_generate_challenge (char challenge[NDMP_MD5_CHALLENGE_LENGTH])
@@ -148,9 +147,9 @@ ndmmd5_digest (char challenge[NDMP_MD5_CHALLENGE_LENGTH],
 	/*
 	 * Grind it up, ala MD5
 	 */
-	MD5Init(&mdContext);
-	MD5Update(&mdContext, message, 128);
-	MD5Final((unsigned char *)digest, &mdContext);
+	NDML_MD5Init(&mdContext);
+	NDML_MD5Update(&mdContext, message, 128);
+	NDML_MD5Final((unsigned char *)digest, &mdContext);
 
 	/*
 	 * ding! done

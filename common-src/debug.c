@@ -59,6 +59,7 @@ static char *dbgdir = NULL;
 
 /* time debug log was opened (timestamp of the file) */
 static time_t open_time;
+static gboolean running_under_installcheck = FALSE;
 
 /* storage for global variables */
 int error_exit_status = 1;
@@ -111,6 +112,26 @@ get_debug_name(
     result = g_strjoin(NULL, get_pname(), ".", ts, number, ".debug", NULL);
     amfree(ts);
     return result;
+}
+
+/* Return the current value of dbgdir. */
+char *get_dbgdir(void)
+{
+  char * l_dbgdir = NULL;
+
+  if (dbgdir == NULL) {
+    /* See if it is set in the environment. */
+    l_dbgdir = getenv("AMANDA_DBGDIR");
+    if (l_dbgdir == NULL) {
+#ifdef AMANDA_DBGDIR
+      l_dbgdir = AMANDA_DBGDIR;
+#else
+      l_dbgdir = AMANDA_TMPDIR;
+#endif
+    }
+    dbgdir = g_strdup(l_dbgdir);
+  }
+  return dbgdir;
 }
 
 /* Call this to suppress tracebacks on error() or g_critical().  This is used
@@ -287,28 +308,39 @@ static void
 debug_setup_1(char *config, char *subdir)
 {
     char *sane_config = NULL;
+    char *l_dbgdir = getenv("AMANDA_DBGDIR");
 
-    /*
-     * Create the debug directory if it does not yet exist.
-     */
-    amfree(dbgdir);
-    if (config)
-	sane_config = sanitise_filename(config);
-    if (sane_config && subdir)
-	dbgdir = g_strjoin(NULL, AMANDA_DBGDIR, "/", subdir, "/", sane_config,
-			   "/", NULL);
-    else if (sane_config)
-	dbgdir = g_strjoin(NULL, AMANDA_DBGDIR, "/", sane_config, "/", NULL);
-    else if (subdir)
-	dbgdir = g_strjoin(NULL, AMANDA_DBGDIR, "/", subdir, "/", NULL);
-    else
-	dbgdir = g_strconcat(AMANDA_DBGDIR, "/", NULL);
+    /* If dbgdir is set in the environment, use that and ignore config and subdir */
+    if (l_dbgdir == NULL) {
+      /*
+       * Create the debug directory if it does not yet exist.
+       */
+      if (config || subdir) {
+	if (config)
+	  sane_config = sanitise_filename(config);
+	if (sane_config && subdir)
+	  l_dbgdir = g_strjoin(NULL, AMANDA_DBGDIR, "/", subdir, "/", sane_config,
+			     "/", NULL);
+	else if (sane_config)
+	  l_dbgdir = g_strjoin(NULL, AMANDA_DBGDIR, "/", sane_config, "/", NULL);
+	else if (subdir)
+	  l_dbgdir = g_strjoin(NULL, AMANDA_DBGDIR, "/", subdir, "/", NULL);
+	else
+	  l_dbgdir = g_strconcat(AMANDA_DBGDIR, "/", NULL);
+      }
+      amfree(sane_config);
+      dbgdir = l_dbgdir;
+    } else {
+      /* We got the string from the environment.
+       * Copy the string so we can free it later.
+       */
+      dbgdir = strdup(l_dbgdir);
+    }
     if(mkpdir(dbgdir, 0700, get_client_uid(), get_client_gid()) == -1) {
 	error(_("create debug directory \"%s\": %s"),
 	      dbgdir, strerror(errno));
 	/*NOTREACHED*/
     }
-    amfree(sane_config);
 
     time(&open_time);
 }
@@ -552,6 +584,7 @@ debug_open(char *subdir)
     int i;
     char *s = NULL;
     mode_t mask;
+    char *l_dbgdir = NULL;	/* local variable, not to be confused with the global "dbgdir" */
 
     /* create AMANDA_TMPDIR */
     make_amanda_tmpdir();
@@ -560,7 +593,24 @@ debug_open(char *subdir)
     debug_setup_logging();
 
     /* set 'dbgdir' and clean out old debug files */
-    debug_setup_1(NULL, subdir);
+    if (strcmp(subdir, "installcheck")) {
+      l_dbgdir = subdir;
+    } else {
+      /* Special setup for "installcheck":
+       *  we'll use a separate debug directory for each test,
+       *  based on the name of the test.
+       */
+      running_under_installcheck = TRUE;
+      l_dbgdir = get_pname();
+    }
+    debug_setup_1(NULL, l_dbgdir);
+
+    /* If we're running under "installcheck", put the dbgdir
+     *  in the environment where other applications can find it.
+     */
+    if (running_under_installcheck) {
+      setenv("AMANDA_DBGDIR", dbgdir, 0);
+    }
 
     /*
      * Create the new file with a unique sequence number.
@@ -650,6 +700,15 @@ debug_rename(
 
     if (get_pcontext() == CONTEXT_SCRIPTUTIL) {
 	return;
+    }
+
+    /* Ignore attempts to rename if we're running under installcheck. */
+    if (running_under_installcheck) {
+      char *current = get_dbgdir();
+
+      dbprintf(_("Ignoring rename (installcheck) \"%s\" to (\"%s\", \"%s\")"),
+	       current, config, subdir);
+      return;
     }
 
     /* Remove old log from source directory */

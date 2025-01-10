@@ -568,7 +568,7 @@ localhost    $diskname3X 0    1050    1050    --     0:00 999999.9   0:00 999999
 (brought to you by Amanda version x.y.z)
 END_REPORT
 
-check_amreport($report, $timestamp, "amreport first amdump");
+check_amreport($report, $timestamp, "amreport first amdump", 1);
 
 # amstatus
 

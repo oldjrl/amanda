@@ -72,9 +72,8 @@ include $(top_srcdir)/config/automake/precompile.am
 AM_CPPFLAGS =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
 		-I$(top_srcdir)/gnulib \
-        ${TIRPC_CFLAGS}
-
-# TODO: use existing md5 facility? (openssl?)
+        ${TIRPC_CFLAGS} \
+        $(AMANDA_MD5_CPPFLAGS) $(AMANDA_MD5_CFLAGS)
 
 # TODO: tests!
 
@@ -160,9 +159,6 @@ libndmjls = \
 	smc_parse.c \
 	smc_pp.c
 
-libndmjl5 = \
-	md5c.c
-
 libndmjlo = \
 	ndmos.c \
 	ndmos_common.c
@@ -172,9 +168,14 @@ libndmlib_la_SOURCES = \
 	$(libndmjll) \
 	$(libndmjlp) \
 	$(libndmjls) \
-	$(libndmjl5) \
 	$(libndmjlo) \
 	ndmpconnobj.c
+
+if AMANDA_MD5_SOURCE
+libndmlib_la_SOURCES += md5/md5c.c
+endif
+
+libndmlib_la_LIBADD = $(AMANDA_MD5_LIBADD)
 
 libndmjob_la_SOURCES = \
 	$(libndmjla) \
@@ -281,7 +282,7 @@ BUILT_SOURCES += \
 	ndmp9_xdr.c
 
 noinst_HEADERS = \
-	md5.h            ndmp0_enum_strs.h  ndmp3.x            ndmprotocol.h \
+	md5/md5.h ndmp0_enum_strs.h  ndmp3.x            ndmprotocol.h \
 	ndmagents.h      ndmp0.h            ndmp4_enum_strs.h  ndmp_translate.h \
 	ndmjob.h         ndmp0.x            ndmp4.h            scsiconst.h \
 	ndmjr_none.h     ndmp2_enum_strs.h  ndmp4_translate.h  smc.h \

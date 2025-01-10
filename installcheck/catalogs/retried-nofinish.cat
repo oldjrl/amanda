@@ -62,9 +62,8 @@ USAGE BY TAPE:
 
 FAILED DUMP DETAILS:
 
-/--  jamon.slikon.local /var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326133640000.debug]
+jamon.slikon.local /var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326133640000.debug]
 blah blah blah
-\\--------
 
 
 NOTES:

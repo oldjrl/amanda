@@ -37,6 +37,7 @@
 
 amglue_export_tag(init,
     debug_init dbopen dbreopen dbrename dbclose
+    get_dbgdir
     $error_exit_status
 );
 
@@ -45,6 +46,7 @@ void	dbopen(char *subdir);
 void	dbreopen(char *file, char *notation);
 void	dbrename(char *config, char *subdir);
 void	dbclose(void);
+char *	get_dbgdir(void);
 
 int error_exit_status;
 

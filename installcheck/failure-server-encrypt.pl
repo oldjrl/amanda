@@ -390,22 +390,20 @@ USAGE BY TAPE:
 
 
 FAILED DUMP DETAILS:
-  /-- localhost diskname2 lev 0 FAILED [write to encryption program failed: Broken pipe]
+  localhost diskname2 lev 0 FAILED [write to encryption program failed: Broken pipe]
   sendbackup: info BACKUP=APPLICATION
   sendbackup: info APPLICATION=amrandom
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
   sendbackup: info end
   ? data encrypt: amcat-error: failure X
   ? data encrypt: exited with status 1
-  \\--------
-  /-- localhost diskname2 lev 0 FAILED [write to encryption program failed: Broken pipe]
+  localhost diskname2 lev 0 FAILED [write to encryption program failed: Broken pipe]
   sendbackup: info BACKUP=APPLICATION
   sendbackup: info APPLICATION=amrandom
   sendbackup: info RECOVER_CMD=$Amanda::Paths::APPLICATION_DIR/amrandom restore [./file-to-restore]+
   sendbackup: info end
   ? data encrypt: amcat-error: failure X
   ? data encrypt: exited with status 1
-  \\--------
 
 
 NOTES:
@@ -424,7 +422,7 @@ localhost    diskname2   0              64    --      PARTIAL        0:00 999999
 (brought to you by Amanda version 4.0.0alpha.git.00388ecf)
 END_REPORT
 
-check_amreport($report, $timestamp, "amreport first amdump", undef, 1);
+check_amreport($report, $timestamp, "amreport first amdump", 1, 1);
 
 # amstatus
 

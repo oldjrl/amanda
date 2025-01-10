@@ -145,8 +145,13 @@ particular test script.
 
 use Installcheck;
 use Installcheck::Config;
+use Amanda::Config qw( :getconf );
+use Amanda::Debug qw( get_dbgdir );
 use Amanda::Paths;
+use File::Copy;
+use File::Find;
 use File::Path;
+use File::Spec::Functions;
 use IPC::Open3;
 use Cwd qw(abs_path getcwd);
 use Carp;
@@ -154,6 +159,7 @@ use POSIX qw( WIFEXITED );
 use Test::More;
 use Amanda::Config qw( :init );
 use Amanda::Util qw(slurp);
+use HierHash;
 
 require Exporter;
 
@@ -224,7 +230,7 @@ sub setup_backmeup {
     };
 
     rmtree($diskname);
-    mkpath($diskname) or die("Could not create $name");
+    mkpath($diskname) or die("Could not create $diskname");
 
     # pick a file for 'random' data -- /dev/urandom or, failing that,
     # Amanda's ChangeLog.
@@ -403,11 +409,17 @@ sub load_vtape_res {
     return $res;
 }
 
+my $ran_test = 0;
+
 sub run {
     my $app = shift;
     my @args = @_;
     my $errtempfile = "$Installcheck::TMP/stderr$$.out";
 
+    if ($ran_test and 0) {
+	preserve_run_on_failure();
+	$ran_test = 0;
+    }
     # use a temporary file for error output -- this eliminates synchronization
     # problems between reading stderr and stdout
     local (*INFH, *OUTFH, *ERRFH);
@@ -416,6 +428,7 @@ sub run {
     $app = "$sbindir/$app" unless ($app =~ qr{/});
     my $pid = IPC::Open3::open3("INFH", "OUTFH", ">&ERRFH",
 	"$app", @args);
+    $ran_test = 1;
 
     # immediately close the child's stdin
     close(INFH);
@@ -493,6 +506,10 @@ sub run_err {
 }
 
 sub cleanup {
+    if ($ran_test) {
+	preserve_run_on_failure();
+	$ran_test = 0;
+    }
     Installcheck::Config::cleanup();
 
     if (-d $taperoot) {
@@ -517,6 +534,17 @@ sub run_expect {
 
 sub amdump_diag {
     my ($msg) = @_;
+
+    # We're here due to a failure.
+    # Ensure $stdout and $stderr are reported.
+    my $detail = '';
+    if ($stderr) {
+        $detail .= "\nstderr is:\n$stderr";
+    } else {
+        if ($stdout and length($stdout) < 1024) {
+            $detail .= "\nstdout is:\n$stdout";
+        }
+    }
 
     # try running amreport
     my $report = "failure-report.txt";
@@ -548,6 +576,7 @@ sub amdump_diag {
     Test::More::diag("no amreport available, and no config errors");
 
 bail:
+    Test::More::diag("run unexpectedly failed; no output to compare$detail");
     if ($msg) {
 	Test::More::BAIL_OUT($msg);
     } else {
@@ -555,51 +584,83 @@ bail:
     }
 }
 
+sub sort_sortables
+{
+    my $unsorted_ref = shift;
+    my @new_lines;
+    my $sort_section = 0;
+    my @section;
+    my $sortable_sections = qr/^((  Label)|(NOTES:)|(FAILED DUMP DETAILS:)|(STRANGE DUMP DETAILS:))/;
+
+    foreach my $line (@$unsorted_ref) {
+	if ($sort_section) {
+	    if ($line eq '') {
+		push @new_lines, sort @section;
+		push @new_lines, $line;
+		@section = ();
+		$sort_section = 0;
+	    } else {
+		push @section, $line;
+	    }
+	} else {
+	    push @new_lines, $line;
+	    if ($line =~ /$sortable_sections/) {
+		$sort_section = 1;
+	    }
+	}
+    }
+    return @new_lines;
+}
+
 sub diag_diff
 {
-    my ( $a, $b, $text ) = @_;
-
-# line betwwen '  /--' and '  \--------' can be in varying order
+    my ( $got, $expect, $text, $sort ) = @_;
 
     my $fail = 0;
+    my $optional_regex = qr/ -\\\?$/;
+    my $optional;
 
-    my @a = split /\n/, $a;
-    my @b = split /\n/, $b;
-    while (defined(my $la = shift @a)) {
-	my $lb = shift @b;
+    my @got = split /\n/, $got;
+    my @expect = split /\n/, $expect;
 
-	if ($la =~ /^  \/-- /) {
-	    my @ax;
-	    my @bx;
-	    push @ax, $la;
-	    push @bx, $lb;
-	    while (($la = shift @a) !~ /  \\--------/) {
-		$lb = shift @b;
-		push @ax, $la;
-		push @bx, $lb;
-	    }
-	    $lb = shift @b;
+    if ($sort) {
+	@got = sort_sortables(\@got);
+	@expect = sort_sortables(\@expect);
+    }
 
-	    @ax = sort @ax;
-	    @bx = sort @bx;
-	    while (defined(my $xa = shift @ax)) {
-		my $xb = shift @bx;
-		if ($xa !~ /^$xb$/){
-		    $fail = 1;
-		    diag("-$xa");
-		    diag("+$xb");
+    my $got_i = 0;
+    my $expect_i = 0;
+    while ( $got_i <= $#got) {
+	my $g = $got[$got_i];
+	my $e = $expect[$expect_i];
+
+	if (defined($e)) {
+	    $optional = $e;
+	    ($e = $optional) =~ s/$optional_regex//;
+	    $optional = undef if ($optional eq $e);
+
+	    while ($g !~ /^$e$/ and $optional) {
+		$expect_i += 1;
+		if (defined($optional = $expect[$expect_i])) {
+		    ($e = $optional) =~ s/$optional_regex//;
+		    $optional = undef if ($optional eq $e);
+		} else {
+		    $e = undef;
 		}
 	    }
 	}
-	if ($la !~ /^$lb$/){
-		$fail = 1;
-	    diag("-$la");
-	    diag("+$lb");
+	if (!(defined($g) && defined($e) && $g =~ /^$e$/)) {
+	    $fail = 1;
+	    diag("-$g") if (defined($g));
+	    diag("+$e") if (defined($e));
 	}
+	$got_i += 1;
+	$expect_i += 1;
     }
-    foreach my $lb (@b) {
+    while ( $expect_i <= $#expect) {
 	$fail = 1;
-	diag("+$lb");
+	diag("+$expect[$expect_i]");
+	$expect_i += 1;
     }
     ok(!$fail, "$text: match");
 
@@ -624,6 +685,7 @@ sub check_amreport
     my $text = shift || 'amreport';
     my $sorting = shift;
     my $skip_size = shift;
+    my $ignore_regex = shift;
     my $got_report;
     $skip_size = 1 if !defined $skip_size;
 
@@ -648,59 +710,26 @@ sub check_amreport
     $report =~ s/brought to you by Amanda version .*\\/brought to you by Amanda version $Amanda::Constants::VERSION\\/g;
 
     run("amreport", 'TESTCONF');
+    my @lines = split "\n", $Installcheck::Run::stdout;
 
-    if ($sorting) {
-	my @lines = split "\n", $Installcheck::Run::stdout;
-	if ($skip_size) {
-	    @lines = grep { $_ !~ /^  sendbackup: size/ } @lines;
-	}
-	my @new_lines;
-	my $in_usage_by_tape = 0;
-	my $in_notes = 0;
-	my @notes;
-	my @usage_by_tapes;
-
-	foreach my $line (@lines) {
-	    if ($in_usage_by_tape) {
-		if ($line eq '') {
-		    push @new_lines, sort @usage_by_tapes;
-		    push @new_lines, $line;
-		    $in_usage_by_tape = 0;
-		} else {
-		    push @usage_by_tapes, $line;
-		}
-	    } elsif ($in_notes) {
-		if ($line eq '') {
-		    push @new_lines, sort @notes;
-		    push @new_lines, $line;
-		    $in_notes = 0;
-		} else {
-		    push @notes, $line;
-		}
-	    } else {
-		push @new_lines, $line;
-		if ($line =~ /^  Label/) {
-		    $in_usage_by_tape = 1;
-		} elsif ($line =~ /^NOTES:/) {
-		    $in_notes = 1;
-		}
-	    }
-	}
-	$got_report = join "\n", @new_lines;
-	$got_report .= "\n";
-    } else {
-	if ($skip_size) {
-	    my @lines = split "\n", $Installcheck::Run::stdout;
-	    @lines = grep { $_ !~ /^  sendbackup: size/ } @lines;
-	    $got_report = join "\n", @lines;
-	    $got_report .= "\n";
-	} else {
-	    $got_report = $Installcheck::Run::stdout;
-	}
+    if ($skip_size) {
+	@lines = grep { $_ !~ /^  sendbackup: size/ } @lines;
     }
 
+    @newlines = ();
+OUTER:	foreach my $line (@lines) {
+	    # Ignore any lines that match the ignore regex
+	    foreach my $iregex (@$ignore_regex) {
+		next OUTER if ($line =~ /$iregex/);
+	    }
+	    push @newlines, $line;
+    }
+    @lines = @newlines;
+    $got_report = join "\n", @lines;
+    $got_report .= "\n";
+
 #    ok($got_report =~ $report, "$text: match") || diag_diff($got_report, $report, $text);
-    diag_diff($got_report, $report, $text);
+    diag_diff($got_report, $report, $text, $sorting);
 #diag("stdout::::${Installcheck::Run::stdout}::::\n");
 #diag("got_report::::${got_report}::::\n");
 #diag("report::::${report}::::\n");
@@ -737,5 +766,49 @@ sub check_amstatus
     diag_diff($got_status, $status, $text);
 #diag("stdout $got_status");
 #diag("status: $status");
+}
+
+my $next_builder_index = 0;
+
+sub preserve_run_on_failure()
+{
+    my $builder = Test::More->builder;
+    my @results = $builder->new->summary;
+    my $failed = 0;
+
+    # We want to check any new tests, not those we've already counted.
+    for my $test (@results[$next_builder_index,-1]) {
+	$failed += 1 if (!$test);
+    }
+    $next_builder_index = $#results + 1;
+
+    if ($failed) {
+	my $cfgdir = $CONFIG_DIR;
+	my $logdir = "$CONFIG_DIR/TESTCONF/log";
+	my $dbgdir = get_dbgdir();
+	my $tmpdir = getconf($CNF_TMPDIR);
+
+	my %cfg = (
+	    qr(/*.*/?) => 1		# default, everything under $CONFIG_DIR
+	    );
+	my %tmp = (
+	    qr(/*.*/?) => 0,		# default, don't copy anything
+	    qr(installchecks/) => {
+		qr(((holding)|(infodir)|(vtapes.*)|(TESTCONF))/) => {	# anything under holding, infodir, vtapes*, TESTCONF in tmp/installchecks
+		    qr(/*.*/?) => 'modified_between($self, $sfpath, ' . $Installcheck::run_setup_start_time . ', undef)'
+		}
+	    },
+	    qr(((server)|(client)|(amandad)|(log.error))/) => {	# anything under server, client, amandad, log.error in tmp
+		qr(/*.*/?) => 'modified_between($self, $sfpath, ' . $Installcheck::run_setup_start_time . ', undef)'
+	    }
+	    );
+	my %cores = (
+	    qr(/*.*/?) => 0,		# default, don't copy anything
+	    qr(/*.+\.core) => 'modified_between($self, $sfpath, ' . $Installcheck::run_setup_start_time . ', undef)'
+	    );
+	copy_dir_selected("$cfgdir", $dbgdir . "config.$Installcheck::run_setup_start_timestamp", \%cfg);
+	copy_dir_selected("$tmpdir/", $dbgdir . "cores.$Installcheck::run_setup_start_timestamp", \%cores);
+	copy_dir_selected("$tmpdir/", $dbgdir . "tmp.$Installcheck::run_setup_start_timestamp", \%tmp);
+    }
 }
 1;

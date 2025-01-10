@@ -27,6 +27,7 @@ use Installcheck;
 use Installcheck::Dumpcache;
 use Installcheck::Config;
 use Amanda::Paths;
+use Amanda::Debug qw( get_dbgdir );
 use Amanda::Device qw( :constants );
 use Amanda::Debug;
 use Amanda::MainLoop;
@@ -67,9 +68,9 @@ $reply = $rest->get("http://localhost:5001/amanda/v1.0/configs/TESTCONF?fields=a
 is_deeply (Installcheck::Rest::remove_source_line($reply),
     { body =>
         [ {	'source_filename' => "$amperldir/Amanda/Rest/Configs.pm",
-		'cfgerror' => "'$Amanda::Paths::CONFIG_DIR/TESTCONF/amanda.conf', line 11: warning: Keyword AMRECOVER_DO_FSF is deprecated.",
+		'cfgerror' => "'$Amanda::Paths::CONFIG_DIR/TESTCONF/amanda.conf', line 12: warning: Keyword AMRECOVER_DO_FSF is deprecated.",
 		'severity' => $Amanda::Message::WARNING,
-		'message' => "config warning: '$Amanda::Paths::CONFIG_DIR/TESTCONF/amanda.conf', line 11: warning: Keyword AMRECOVER_DO_FSF is deprecated.",
+		'message' => "config warning: '$Amanda::Paths::CONFIG_DIR/TESTCONF/amanda.conf', line 12: warning: Keyword AMRECOVER_DO_FSF is deprecated.",
 		'process' => 'Amanda::Rest::Configs',
 		'running_on' => 'amanda-server',
 		'component' => 'rest-server',
@@ -80,6 +81,8 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
       http_code => 200,
     },
     "Get no fields");
+
+Installcheck::Run::preserve_run_on_failure();	# squirrel away test data on error
 
 #CODE 1500001
 $testconf = Installcheck::Run::setup();
@@ -101,6 +104,8 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
       http_code => 200,
     },
     "Get runtapes");
+
+Installcheck::Run::preserve_run_on_failure();	# squirrel away test data on error
 
 #CODE 1500003
 $testconf = Installcheck::Run::setup();
@@ -139,6 +144,8 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
       http_code => 200,
     },
     "Get config list");
+
+Installcheck::Run::preserve_run_on_failure();	# squirrel away test data on error
 
 # CODE 1500003 or 1500004
 $testconf->cleanup();
@@ -193,6 +200,8 @@ if (@conf > 0) {
         },
         "Get config list");
 }
+
+Installcheck::Run::preserve_run_on_failure();	# squirrel away test data on error
 
 #CODE 1500006
 $testconf = Installcheck::Run::setup();
@@ -273,6 +282,9 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
     "Get valid fields (runtapes,tapecycle)") || diag("reply: " . Data::Dumper::Dumper($reply));
 
 $reply = $rest->get("http://localhost:5001/amanda/v1.0/configs/TESTCONF");
+# Remove any trailing slash from $dbgdir since it won't be present in the
+#  config version.
+(my $dbgdir = get_dbgdir()) =~ s/(.*)\/$/$1/;
 is_deeply (Installcheck::Rest::remove_source_line($reply),
     { body =>
         [ {	'source_filename' => "$amperldir/Amanda/Rest/Configs.pm",
@@ -288,7 +300,7 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
 			'HOLDINGDISK' => [
 				'hd1'
 			],
-			'REST-API-PORT' => 0,
+			'REST-API-PORT' => 5000,
 			'MAXDUMPSIZE' => -1,
 			'DEBUG-TAPER' => 0,
 			'REPORT-FORMAT' => [],
@@ -396,6 +408,7 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
 			'INDEXDIR' => getconf($CNF_INDEXDIR),
 			'LOGDIR' => getconf($CNF_LOGDIR),
 			'DUMPUSER' => getconf($CNF_DUMPUSER),
+			'DBGDIR' => $dbgdir,
                 },
 
 		'message' => 'Parameters values',
@@ -409,6 +422,8 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
       http_code => 200,
     },
     "Get all fields") || diag("reply: " . Data::Dumper::Dumper($reply));
+
+Installcheck::Run::preserve_run_on_failure();	# squirrel away test data on error
 
 # set up and load a simple config
 $testconf = Installcheck::Run::setup();
@@ -511,6 +526,8 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
       http_code => 200,
     },
     "List changer") || diag("reply: " .Data::Dumper::Dumper($reply));
+
+Installcheck::Run::preserve_run_on_failure();	# squirrel away test data on error
 
 my $taperoot = "$Installcheck::TMP/Amanda_Changer_Diskflat_test";
 
@@ -615,6 +632,7 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
 
 $rest->stop();
 
+Installcheck::Run::preserve_run_on_failure();
 rmtree $taperoot;
 
 

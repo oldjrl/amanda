@@ -140,3 +140,38 @@ AC_DEFUN([AMANDA_DISABLE_SYNTAX_CHECKS],
 
     AM_CONDITIONAL(SYNTAX_CHECKS, $SYNTAX_CHECKS)
 ])
+
+# SYNOPSIS
+#
+#   AMANDA_DEBUG_XFER_REF
+#
+# OVERVIEW
+#
+#   Handles the --enable-debug-xfer-ref flag, which triggers additional info
+#   (__FILE__, __LINE__) for calls to xref_ref(), xfer_unref(), xfer_cancel(),
+#   and xfer_filter_process(). It redefines these functios (adding a "db" to
+#   the name) and defines a macro to call the renamed versions of these functions.
+
+AC_DEFUN([AMANDA_DEBUG_XFER_REF],
+[
+    AH_TEMPLATE([DEBUG_XFER_REF], [Define to enable extra xfer debugging (file and line numbers) for xfer object manipulation.])
+    AC_ARG_ENABLE(debug-xfer-ref,
+	AS_HELP_STRING([--enable-debug-xfer-ref],
+	    [Add provenance parameters (__FILE__. __LINE__) to some xfer ref calls - developers only]),
+	    [
+		case "$enableval" in
+		    no) NEW_DEBUG_XFER_REF=0 ;;
+		    *)	NEW_DEBUG_XFER_REF=1 ;;
+		esac
+		if test "x$DEBUG_XFER_REF" == "x"; then
+		    DEBUG_XFER_REF=$NEW_DEBUG_XFER_REF
+		elif test $DEBUG_XFER_REF != $NEW_DEBUG_XFER_REF; then
+		    AMANDA_MSG_WARN([--enable-debug-xfer-ref ($NEW_DEBUG_XFER_REF) different from specified DEBUG_XFER_REF ($DEBUG_XFER_REF) - ignoring former])
+		fi
+	    ], [])
+    if test "x$DEBUG_XFER_REF" != "x" && test $DEBUG_XFER_REF -ne 0; then
+	AC_DEFINE([DEBUG_XFER_REF])
+	AMANDA_MSG_WARN([--enable-debug-xfer-ref should only be used by developers])
+    fi
+    AM_CONDITIONAL([DEBUG_XFER_REF], [test x$DEBUG_XFER_REF = x1])
+])

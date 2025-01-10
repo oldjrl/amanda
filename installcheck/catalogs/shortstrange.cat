@@ -71,7 +71,7 @@ USAGE BY TAPE:
 
 STRANGE DUMP DETAILS:
 
-/--  bsdfw.slikon.local / lev 0 STRANGE
+bsdfw.slikon.local / lev 0 STRANGE
 sendbackup: info BACKUP=APPLICATION
 sendbackup: info APPLICATION=amgtar
 sendbackup: info RECOVER_CMD=/usr/bin/gzip -dc |amgtar -f... -
@@ -86,7 +86,6 @@ sendbackup: info end
 | Total bytes written: 5530869760 (5.2GiB, 3.0MiB/s)
 sendbackup: size 5401240
 sendbackup: end
-\\--------
 
 
 DUMP SUMMARY:

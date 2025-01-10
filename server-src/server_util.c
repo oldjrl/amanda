@@ -41,6 +41,7 @@
 #include "infofile.h"
 #include "backup_support_option.h"
 #include "sys/wait.h"
+#include "fsusage.h"
 
 const char *cmdstr[] = {
     "BOGUS", "QUIT", "QUITTING", "DONE", "PARTIAL",
@@ -654,8 +655,7 @@ internal_server_estimate(
     disk_t *dp,
     info_t *info,
     int     level,
-    int    *stats,
-    tapetype_t *tapetype)
+    int    *stats)
 {
     int    j;
     gint64 size = 0;
@@ -681,8 +681,6 @@ internal_server_estimate(
 	    *stats = 1;
 	} else {
 	    size = (gint64)1000000;
-	    if (size > tapetype_get_length(tapetype)/2)
-		size = tapetype_get_length(tapetype)/2;
 	    *stats = 0;
 	}
     } else if (level == info->last_level) {
@@ -725,11 +723,8 @@ internal_server_estimate(
 	    int level0_stat;
 	    gint64 level0_size;
 
-            level0_size = internal_server_estimate(dp, info, 0, &level0_stat,
-						   tapetype);
+            level0_size = internal_server_estimate(dp, info, 0, &level0_stat);
 	    size = (gint64)10000;
-	    if (size > tapetype_get_length(tapetype)/2)
-		size = tapetype_get_length(tapetype)/2;
 	    if (level0_size > 0 && dp->strategy != DS_NOFULL) {
 		if (size > level0_size/2)
 		    size = level0_size/2;
@@ -760,11 +755,8 @@ internal_server_estimate(
 	    int level0_stat;
 	    gint64 level0_size;
 
-            level0_size = internal_server_estimate(dp, info, 0, &level0_stat,
-						   tapetype);
+            level0_size = internal_server_estimate(dp, info, 0, &level0_stat);
 	    size = (gint64)100000;
-	    if (size > tapetype_get_length(tapetype)/2)
-		size = tapetype_get_length(tapetype)/2;
 	    if (level0_size > 0 && dp->strategy != DS_NOFULL) {
 		if (size > level0_size/2)
 		    size = level0_size/2;
@@ -773,8 +765,6 @@ internal_server_estimate(
 	}
     } else {
 	size = (gint64)100000;
-	if (size > tapetype_get_length(tapetype)/2)
-	    size = tapetype_get_length(tapetype)/2;
     }
 
     return size;
@@ -784,12 +774,122 @@ int
 server_can_do_estimate(
     disk_t *dp,
     info_t *info,
-    int     level,
-    tapetype_t *tapetype)
+    int     level)
 {
     int     stats;
 
-    internal_server_estimate(dp, info, level, &stats, tapetype);
+    internal_server_estimate(dp, info, level, &stats);
     return stats;
 }
 
+/* Does the specified storage match the specified disk and dump level? */
+gboolean
+dump_match_storage_disk_level(
+    storage_t *storage,
+    disk_t *disk,
+    int level)
+{
+    gboolean ok = FALSE;
+    dump_selection_list_t dsl = storage_get_dump_selection(storage);
+
+    /* No dump selection list is the same as TAG_ALL */
+    if (!dsl) {
+      return TRUE;
+    }
+
+    /* If there is a dump selection list, see if its criteria
+       (tag, level) match those of this disk.
+    */
+    for (; dsl != NULL ; dsl = dsl->next) {
+      dump_selection_t *ds = dsl->data;
+
+      if (ds->tag_type == TAG_ALL) {
+	ok = TRUE;
+      } else if (ds->tag_type == TAG_NAME) {
+	identlist_t tags;
+	/* No tags currently means, "use any named storage".
+	   This doesn't seem correct.
+	*/
+	if (!disk->tags) {
+	  ok = TRUE;
+	} else {
+	  for (tags = disk->tags; tags != NULL ; tags = tags->next) {
+	    if (g_str_equal(ds->tag, tags->data)) {
+	      ok = TRUE;
+	      break;
+	    }
+	  }
+	}
+      } else if (ds->tag_type == TAG_OTHER) {
+	// WHAT DO TO HERE
+      }
+      if (ok) {
+	if (ds->level == LEVEL_ALL) {
+	  return TRUE;
+	} else if (ds->level == LEVEL_FULL && level == 0) {
+	  return TRUE;
+	} else if (ds->level == LEVEL_INCR && level > 0) {
+	  return TRUE;
+	}
+      }
+    }
+    return FALSE;
+}
+
+/* Return the first storage that matches the specified disk and dump level */
+storage_t *
+dump_find_storage_disk_level(
+    disk_t *disk,
+    int level)
+{
+    storage_t *storage;
+
+    for (storage = get_first_storage(); storage != NULL;
+	 storage = get_next_storage(storage)) {
+      if (dump_match_storage_disk_level(storage, disk, level))
+	break;
+    }
+    /* We've either found a suitable storage for this disk and level,
+       or we haven't and storage is NULL.
+    */
+    return storage;
+}
+
+/* Return the amount of space available on the
+ *  holding disk for degraded dumps in KB.
+ */
+intmax_t
+degraded_disk_available_KB(void)
+{
+    unsigned long conf_reserve = (unsigned long)getconf_int(CNF_RESERVE);
+    intmax_t total_disksize = 0;
+    struct fs_usage fsusage;
+    identlist_t    il;
+    intmax_t availKB;
+    intmax_t reserved_space;
+
+    for (il = getconf_identlist(CNF_HOLDINGDISK);
+	 il != NULL;
+	 il = il->next) {
+        holdingdisk_t *hdp = lookup_holdingdisk(il->data);
+        intmax_t disksize = holdingdisk_get_disksize(hdp);
+
+	/* get disk size */
+	if(get_fs_usage(holdingdisk_get_diskdir(hdp), NULL, &fsusage) == -1) {
+	    continue;
+	}
+
+	if (fsusage.fsu_bavail_top_bit_set)
+	    availKB = 0;
+	else
+	    availKB = fsusage.fsu_bavail/1024 * fsusage.fsu_blocksize;
+
+	if (disksize > availKB) {
+	  disksize = availKB;
+	}
+	total_disksize += disksize;
+    }
+
+    reserved_space = total_disksize * (off_t)((float)conf_reserve / 100.);
+    return reserved_space;
+}

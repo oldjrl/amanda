@@ -98,6 +98,7 @@ sub basic_settings {
 
     $testconf->add_param('autolabel', '"TESTCONF%%" EMPTY VOLUME_ERROR');
     $testconf->add_param('amrecover_changer', '"changer"');
+    $testconf->add_param("debug-driver", "9");
 }
 
 sub use_new_chg_disk {

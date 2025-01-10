@@ -157,7 +157,7 @@ is_deeply([sort(+split(/\n/, run_get('amgetconf', 'TESTCONF', '--list', 'holding
 # dbopen, dbclose
 my $dbfile = run_get('amgetconf', 'TESTCONF', "dbopen.foo");
 chomp $dbfile;
-like($dbfile, qr(^\Q$AMANDA_DBGDIR\E/server/foo.[0-9]*.debug$),
+like($dbfile, qr(^\Q$AMANDA_DBGDIR\E/amgetconf/foo.[0-9]*.debug$),
     "'amgetconf dbopen.foo' returns a proper debug filename");
 SKIP: {
     skip "dbopen didn't work, so I'll skip the rest", 3
@@ -169,7 +169,7 @@ SKIP: {
 
     # sometimes shell scripts pass a full path as appname..
     $dbfile = run_get('amgetconf', 'TESTCONF', 'dbopen./sbin/foo');
-    like($dbfile, qr(^\Q$AMANDA_DBGDIR\E/server/_sbin_foo.[0-9]*.debug$),
+    like($dbfile, qr(^\Q$AMANDA_DBGDIR\E/amgetconf/_sbin_foo.[0-9]*.debug$),
 	"'amgetconf dbopen./sbin/foo' doesn't get confused by the slashes");
 }
 
@@ -361,7 +361,10 @@ is(run_get('amgetconf', 'TESTCONF', "property:prop2"), "value2",
     "correctly returns property prop2 from the file");
 is(run_get('amgetconf', 'TESTCONF', "property:prop3"), "value3",
     "correctly returns property prop3 from the file");
-is(run_get('amgetconf', 'TESTCONF', "property"), "hidden \"prop1\" \"value1\"\nhidden \"prop2\" \"value2\"\nhidden \"prop3\" \"value3\"",
+is_deeply([sort(+split(qr/\n/, run_get('amgetconf', 'TESTCONF', "property")))],
+	  [sort('hidden "prop1" "value1"',
+		'hidden "prop2" "value2"',
+		'hidden "prop3" "value3"')],
     "correctly returns all propertiss from the file");
 
 isnt(run_get('amgetconf', '--platform'), "Unknown",

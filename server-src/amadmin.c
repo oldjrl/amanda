@@ -430,13 +430,13 @@ estimate_one(
 
     get_info(hostname, diskname, &info);
 
-    size = internal_server_estimate(dp, &info, 0, &stats, tapetype);
+    size = internal_server_estimate(dp, &info, 0, &stats);
     if (stats) {
 	printf("%s %s %d %jd\n", qhost, qdisk, 0, (intmax_t)size);
     }
 
     if (info.last_level > 0) {
-	size = internal_server_estimate(dp, &info, info.last_level, &stats, tapetype);
+	size = internal_server_estimate(dp, &info, info.last_level, &stats);
 	if (stats) {
 	    printf("%s %s %d %jd\n", qhost, qdisk, info.last_level,
 		   (intmax_t)size);
@@ -444,7 +444,7 @@ estimate_one(
     }
 
     if (info.last_level > -1) {
-	size = internal_server_estimate(dp, &info, info.last_level+1, &stats, tapetype);
+	size = internal_server_estimate(dp, &info, info.last_level+1, &stats);
 	if (stats) {
 	    printf("%s %s %d %jd\n", qhost, qdisk, info.last_level+1,
 		   (intmax_t)size);

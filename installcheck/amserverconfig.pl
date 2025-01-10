@@ -49,21 +49,32 @@ sub config_ok {
 }
 
 my $config = "TESTCONF";
+
+sub cleanup {
+    Installcheck::Run::cleanup();
+    rmtree("$amandastatedir/$config");
+}
+
+my $statedir_exists = 0;
+$statedir_exists = 1 if -d "$amandastatedir";
+if (!$statedir_exists) {
+   mkpath($amandastatedir);
+}
 my $holding_exists = 0;
 $holding_exists = 1 if -d "$amandastatedir/holdings/$config";
 my $vtapes_exists = 0;
 $vtapes_exists = 1 if -d "$amandastatedir/vtapes/$config";
 
-Installcheck::Run::cleanup();
+cleanup();
 ok(run("$sbindir/amserverconfig", 'TESTCONF', '--template', 'S3'),
     "amserverconfig with S3 template")
-    or diag($Installcheck::Run::stdout);
+    or diag($Installcheck::Run::stderr);
 config_ok();
 
-Installcheck::Run::cleanup();
+cleanup();
 ok(run("$sbindir/amserverconfig", 'TESTCONF', '--template', 'harddisk'),
     "amserverconfig with harddisk template")
-    or diag($Installcheck::Run::stdout);
+    or diag($Installcheck::Run::stderr);
 config_ok();
 if (!$holding_exists and -d "$amandastatedir/holdings/$config") {
     rmtree("$amandastatedir/holdings/$config");
@@ -72,13 +83,13 @@ if (!$vtapes_exists and -d "$amandastatedir/vtapes/$config") {
     rmtree("$amandastatedir/vtapes/$config");
 }
 
-Installcheck::Run::cleanup();
+cleanup();
 mkpath(Installcheck::Run::vtape_dir());
 ok(run("$sbindir/amserverconfig", 'TESTCONF', '--template', 'harddisk',
 		    '--tapecycle', '2',
 		    '--tapedev', Installcheck::Run::vtape_dir()),
     "amserverconfig with harddisk template and tapedev and tapecycle")
-    or diag($Installcheck::Run::stdout);
+    or diag($Installcheck::Run::stderr);
 config_ok();
 if (!$holding_exists and -d "$amandastatedir/holdings/$config") {
     rmtree("$amandastatedir/holdings/$config");
@@ -88,10 +99,10 @@ if (!$vtapes_exists and -d "$amandastatedir/vtapes/$config") {
 }
 
 
-Installcheck::Run::cleanup();
+cleanup();
 ok(run("$sbindir/amserverconfig", 'TESTCONF', '--template', 'single-tape'),
     "amserverconfig with single-tape template")
-    or diag($Installcheck::Run::stdout);
+    or diag($Installcheck::Run::stderr);
 config_ok();
 
 SKIP: {
@@ -100,7 +111,7 @@ SKIP: {
     Installcheck::Run::cleanup();
     ok(run("$sbindir/amserverconfig", 'TESTCONF', '--template', 'tape-changer'),
 	"amserverconfig with tape-changer template")
-	or diag($Installcheck::Run::stdout);
+	or diag($Installcheck::Run::stderr);
     config_ok();
 }
 if (!$holding_exists and -d "$amandastatedir/holdings/$config") {
@@ -109,6 +120,9 @@ if (!$holding_exists and -d "$amandastatedir/holdings/$config") {
 if (!$vtapes_exists and -d "$amandastatedir/vtapes/$config") {
     rmtree("$amandastatedir/vtapes/$config");
 }
+if (!$statedir_exists and -d "$amandastatedir") {
+    rmtree("$amandastatedir");
+}
 
 
-Installcheck::Run::cleanup();
+cleanup();

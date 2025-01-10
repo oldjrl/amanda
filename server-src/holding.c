@@ -560,7 +560,10 @@ holding_get_files_for_flush(
 
     /* loop over *all* files, checking each one's datestamp against the expressions
      * in dateargs */
-    file_list = holding_get_files(NULL, 1, 1);
+    /* Don't grab the pid file. This potentially interferes
+       with dumper's use of that file.
+    */
+    file_list = holding_get_files(NULL, 1, 0);
     for (file_elt = file_list; file_elt != NULL; file_elt = file_elt->next) {
         /* get info on that file */
 	if (!holding_file_get_dumpfile((char *)file_elt->data, &file))
@@ -1092,9 +1095,10 @@ static int can_take_holding(
 		/* check if pid is alive */
 		if (kill(pid, 0) != -1) {
 		    result = 0;
+		} else {
+		  // remove pid file of dead process
+		  unlink(pid_file);
 		}
-		// remove pid file of dead process
-		unlink(pid_file);
 	    } else {
 		if (remove) {
 		    // remove my own pid file

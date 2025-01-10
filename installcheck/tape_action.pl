@@ -140,7 +140,7 @@ my $result;
 
 ok(run('amdump', 'TESTCONF'), "amdump runs successfully")
     or amdump_diag();
-is($exit_code, 0, "exit code is not 0");
+is($exit_code, 0, "exit code is 0");
 is(check_logs("INFO taper tape TESTCONF01 kb 736 fm 1", "INFO taper tape TESTCONF02 kb 736 fm 1", "INFO taper tape TESTCONF03 kb 628 fm 2"), 3, "3 vtapes used");
 $result = check_amdump(
 	[
@@ -226,7 +226,7 @@ $testconf->add_param("debug-driver", '9');
 $testconf->write();
 ok(run('amdump', 'TESTCONF'), "amdump runs successfully")
     or amdump_diag();
-is($exit_code, 0, "exit code is not 0");
+is($exit_code, 0, "exit code is 0");
 is(check_logs("INFO taper tape TESTCONF01 kb 1288 fm 2", "INFO taper tape TESTCONF02 kb 349 fm 1"), 2, "2 vtapes used");
 $result = check_amdump(
 	[
@@ -292,13 +292,13 @@ $testconf->add_param("taperalgo", 'smallest');
 $testconf->add_param("flush_threshold_dumped", '500');
 $testconf->add_param("flush_threshold_scheduled", '500');
 $testconf->add_param("taperflush", '100');
-$testconf->add_param("runtapes", '5');
+$testconf->add_param("runtapes", '1');
 $testconf->add_param("debug-driver", '9');
 $testconf->write();
-ok(!run('amdump', 'TESTCONF'), "amdump exited with no zero")
-    or amdump_diag();
-is($exit_code, 16, "exit code is not 16");
-is(check_logs("INFO taper tape TESTCONF01 kb 1288 fm 2"), 1, "1 vtapes used");
+ok(!run('amdump', 'TESTCONF'), "amdump exited with non zero exit code");
+#    or amdump_diag();
+is($exit_code, 20, "exit code is 20");
+is(check_logs("INFO taper tape TESTCONF01 kb 1312 fm 1"), 1, "1 vtapes used");
 $result = check_amdump(
 	[
 		"to taper0: START-TAPER taper0 worker0-0 TESTCONF",
@@ -309,18 +309,13 @@ $result = check_amdump(
 		"to taper0: NEW-TAPE worker0-0 \\d\\d-\\d\\d\\d\\d\\d",
 		"from taper0: NEW-TAPE worker0-0 \\d\\d-\\d\\d\\d\\d\\d TESTCONF01",
 		"from taper0: READY worker0-0 \\d\\d-\\d\\d\\d\\d\\d",
-		"from taper0: PARTDONE worker0-0 \\d\\d-\\d\\d\\d\\d\\d TESTCONF01 1 200",
-		"from taper0: DONE worker0-0 \\d\\d-\\d\\d\\d\\d\\d INPUT-GOOD TAPE-GOOD",
-		"to taper0: FILE-WRITE worker0-0 \\d\\d-\\d\\d\\d\\d\\d",
-		"from taper0: READY worker0-0 \\d\\d-\\d\\d\\d\\d\\d",
-		"from taper0: PARTDONE worker0-0 \\d\\d-\\d\\d\\d\\d\\d TESTCONF01 2 1088",
+		"from taper0: PARTDONE worker0-0 \\d\\d-\\d\\d\\d\\d\\d TESTCONF01 1 1312",
 		"from taper0: REQUEST-NEW-TAPE worker0-0 \\d\\d-\\d\\d\\d\\d\\d",
-		"to taper0: START-SCAN worker0-0 \\d\\d-\\d\\d\\d\\d\\d",
 		"to taper0: NO-NEW-TAPE worker0-0 \\d\\d-\\d\\d\\d\\d\\d",
 		"from taper0: PARTIAL worker0-0 \\d\\d-\\d\\d\\d\\d\\d INPUT-GOOD TAPE-CONFIG",
 		"to taper0: QUIT"
 	]);
-ok($result == 18, "amdump is good") ||
+ok($result == 13, "amdump is good: 13 log line matches") ||
     dump_amdump($result);
 
 

@@ -533,6 +533,7 @@ typedef struct {
 		g_value_unset($1);
 
 		if (GIMME_V == G_ARRAY) {
+                  EXTEND(SP, 2);
 		    $result = newSViv(*$2);
 		    argvi++;
 		    $result = newSViv(*$3);

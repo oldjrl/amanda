@@ -142,6 +142,8 @@ extern int error_exit_status;
 #define DBG_SUBDIR_CLIENT  "client"
 #define DBG_SUBDIR_AMANDAD "amandad"
 
+extern char *get_dbgdir();		/* the directory for debug output */
+
 /* Open the debugging log in the given subdirectory.  Once 
  * this function is called, debug logging is available.
  *

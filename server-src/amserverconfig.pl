@@ -27,12 +27,13 @@ use Time::Local;
 use File::Copy;
 use File::Path;
 use Socket;   # for gethostbyname
+use Amanda::Debug qw( get_dbgdir );
 use Amanda::Paths;
 use Amanda::Util qw( :constants );
 use Amanda::Constants;
 
 my $confdir="$CONFIG_DIR";
-my $tmpdir="$AMANDA_DBGDIR";
+my $dbgdir=get_dbgdir();
 my $templatedir="$amdatadir/template.d"; #rpm install template files here
 my $def_tapedev="file:$amandastatedir/vtapes";
 
@@ -212,27 +213,37 @@ sub create_holding {
     }
     return;
   }
-    my $div=1;
-    my $out = `df -k $amandastatedir`;
-    my @dfout = split(" " , $out);
-    unless ( $#dfout == 12 ) {	# df should output 12 elem
-	&mprint ("WARNING: df failed, holding disk directory not created\n");
-	$holding_err++;
-	return;
-    }
-    unless (( $dfout[1] eq "1K-blocks" ) || ( $dfout[1] eq "kbytes")) {
-         $div=2;	# 512-blocks displayed by df
-     }
+  my $free_kblocks = 0;
+  # Try the "built-in" way first.
+  my $fs_usage = Amanda::Util::get_fs_usage($amandastatedir);
+  if ($fs_usage && $fs_usage->{"blocksize"} > 0) {
+      if (!$fs_usage->{"bavail_top_bit_set"}) {
+	  $free_kblocks = $fs_usage->{"bavail"} / 1024 * $fs_usage->{"blocksize"};
+      }
+  } else {
+      my $div=1;
+      my $out = `df -k $amandastatedir`;
+      my @dfout = split(" " , $out);
+      unless ( $#dfout == 12 ) {	# df should output 12 elem
+	  &mprint ("WARNING: df failed, holding disk directory not created\n");
+	  $holding_err++;
+	  return;
+      }
+      unless (( $dfout[1] eq "1K-blocks" ) || ( $dfout[1] eq "kbytes")) {
+	  $div=2;	# 512-blocks displayed by df
+      }
+      $free_kblocks = $dfout[10] / $div;
+  }
     
-    if (( $dfout[10] / $div )  > 1024000 ) { # holding disk is defined 1000 MB
-	&mprint ("creating holding disk directory\n");
-	unless ( -d "$amandastatedir/holdings" ) { 
-	mkpath ( "$amandastatedir/holdings", $def_perm) ||
-	    (&mprint ("WARNING: mkpath $amandastatedir/holdings failed: $!\n"), $holding_err++, return );
-    }
-	mkpath ( "$amandastatedir/holdings/$config", $def_perm) ||
-	    (&mprint ("WARNING: mkpath $amandastatedir/holdings/$config failed: $!\n"), $holding_err++, return) ;
-    }
+  if ($free_kblocks > 1024000 ) { # holding disk is defined 1000 MB
+      &mprint ("creating holding disk directory\n");
+      unless ( -d "$amandastatedir/holdings" ) { 
+	  mkpath ( "$amandastatedir/holdings", $def_perm) ||
+	      (&mprint ("WARNING: mkpath $amandastatedir/holdings failed: $!\n"), $holding_err++, return );
+      }
+      mkpath ( "$amandastatedir/holdings/$config", $def_perm) ||
+	  (&mprint ("WARNING: mkpath $amandastatedir/holdings/$config failed: $!\n"), $holding_err++, return) ;
+  }
 }
 
 #create default tape dir
@@ -524,14 +535,14 @@ $ENV{'PATH'} = "/usr/bin:/usr/sbin:/sbin:/bin:/usr/ucb"; # force known path
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 $date=`date +%Y%m%d%H%M%S`;
 chomp($date);
-my $logfile="$tmpdir/amserverconfig.$date.debug";
+my $logfile="$dbgdir/amserverconfig.$date.debug";
 
 Amanda::Util::setup_application("amserverconfig", "server", $CONTEXT_CMDLINE, "amanda", "amanda");
 Amanda::Util::finish_setup($RUNNING_AS_ANY);
 
-unless ( -e "$tmpdir" ) {
-    mkpath ("$tmpdir", $def_perm) ||
-	die ("ERROR: mkpath: $tmpdir failed: $!\n");
+unless ( -e "$dbgdir" ) {
+    mkpath ("$dbgdir", $def_perm) ||
+	die ("ERROR: mkpath: $dbgdir failed: $!\n");
 }
 
 open (LOG, ">$logfile") || die ("ERROR: Cannot create logfile: $!\n");

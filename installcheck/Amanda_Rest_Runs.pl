@@ -1686,7 +1686,7 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                             }
                                                           ],
                                        'failure_details' => [
-                                                              '  /-- ns-new.slikon.local /opt/var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134405000.debug]',
+                                                              '  ns-new.slikon.local /opt/var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134405000.debug]',
                                                               '  sendbackup: info BACKUP=APPLICATION',
                                                               '  sendbackup: info APPLICATION=amgtar',
                                                               '  sendbackup: info RECOVER_CMD=/usr/bin/gzip -dc |amgtar -f... -',
@@ -1698,8 +1698,7 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                               '  sendbackup: error [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134405000.debug]',
                                                               '  sendbackup: size 921710',
                                                               '  sendbackup: end',
-                                                              '  \\--------',
-                                                              '  /-- ns-new.slikon.local /opt/var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134714000.debug]',
+                                                              '  ns-new.slikon.local /opt/var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134714000.debug]',
                                                               '  sendbackup: info BACKUP=APPLICATION',
                                                               '  sendbackup: info APPLICATION=amgtar',
                                                               '  sendbackup: info RECOVER_CMD=/usr/bin/gzip -dc |amgtar -f... -',
@@ -1711,7 +1710,6 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                               '  sendbackup: error [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326134714000.debug]',
                                                               '  sendbackup: size 921730',
                                                               '  sendbackup: end',
-                                                              '  \\--------'
                                                             ]
                                      },
                          'source_filename' => "$amperldir/Amanda/Rest/Report.pm",
@@ -2480,7 +2478,7 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                             }
                                                           ],
                                        'strange_details' => [
-                                                              '  /-- bsdfw.slikon.local / lev 0 STRANGE',
+                                                              '  bsdfw.slikon.local / lev 0 STRANGE',
                                                               '  sendbackup: info BACKUP=APPLICATION',
                                                               '  sendbackup: info APPLICATION=amgtar',
                                                               '  sendbackup: info RECOVER_CMD=/usr/bin/gzip -dc |amgtar -f... -',
@@ -2495,7 +2493,6 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                               '  | Total bytes written: 5530869760 (5.2GiB, 3.0MiB/s)',
                                                               '  sendbackup: size 5401240',
                                                               '  sendbackup: end',
-                                                              '  \\--------'
                                                             ]
                                      },
                          'source_filename' => "$amperldir/Amanda/Rest/Report.pm",
@@ -2643,7 +2640,7 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                             }
                                                           ],
                                        'strange_details' => [
-                                                              '  /-- bsdfw.slikon.local / lev 0 STRANGE',
+                                                              '  bsdfw.slikon.local / lev 0 STRANGE',
                                                               '  sendbackup: info BACKUP=APPLICATION',
                                                               '  sendbackup: info APPLICATION=amgtar',
                                                               '  sendbackup: info RECOVER_CMD=/usr/bin/gzip -dc |amgtar -f... -',
@@ -2749,9 +2746,7 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                               '  | x',
                                                               '  | x',
                                                               '  | x',
-                                                              '  \\--------',
                                                               '  913 lines follow, see the corresponding log.* file for the complete list',
-                                                              '  \\--------'
                                                             ]
                                      },
                          'source_filename' => "$amperldir/Amanda/Rest/Report.pm",
@@ -3049,9 +3044,8 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                             }
                                                           ],
                                        'failure_details' => [
-                                                              '  /-- jamon.slikon.local /var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326133640000.debug]',
+                                                              '  jamon.slikon.local /var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326133640000.debug]',
                                                               '  blah blah blah',
-                                                              '  \\--------'
                                                             ]
                                      },
                          'source_filename' => "$amperldir/Amanda/Rest/Report.pm",
@@ -3206,23 +3200,21 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                             }
                                                           ],
                                        'failure_details' => [
-                                                              '  /-- lead.zmanda.com /tensile-measurements lev 0 FAILED [data read: recv error: Connection timed out]',
+                                                              '  lead.zmanda.com /tensile-measurements lev 0 FAILED [data read: recv error: Connection timed out]',
                                                               '  sendbackup: info BACKUP=APPLICATION',
                                                               '  sendbackup: info APPLICATION=amgtar',
                                                               '  sendbackup: info RECOVER_CMD=/usr/lib64/amanda/application/amgtar restore [./file-to-restore]+',
                                                               '  sendbackup: info COMPRESS_SUFFIX=.gz',
                                                               '  sendbackup: info end',
-                                                              '  \\--------'
                                                             ],
                                        'strange_details' => [
-                                                              '  /-- lead.zmanda.com /tensile-measurements lev 0 STRANGE',
+                                                              '  lead.zmanda.com /tensile-measurements lev 0 STRANGE',
                                                               '  sendbackup: info BACKUP=APPLICATION',
                                                               '  sendbackup: info APPLICATION=amgtar',
                                                               '  sendbackup: info RECOVER_CMD=/usr/lib64/amanda/application/amgtar restore [./file-to-restore]+',
                                                               '  sendbackup: info COMPRESS_SUFFIX=.gz',
                                                               '  sendbackup: info end',
                                                               '  ? /bin/tar: ./foundry.mpg: file changed as we read it',
-                                                              '  \\--------'
                                                             ]
                                      },
                          'source_filename' => "$amperldir/Amanda/Rest/Report.pm",
@@ -3362,9 +3354,8 @@ is_deeply (Installcheck::Rest::remove_source_line($reply),
                                                     '  planner: disk jamon.slikon.local:/var, estimate of level 1 failed.'
                                                   ],
                                        'failure_details' => [
-                                                              '  /-- jamon.slikon.local /var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326133640000.debug]',
+                                                              '  jamon.slikon.local /var lev 0 FAILED [/bin/tar exited with status 2: see /var/log/amanda/client/Daily/amgtar.20090326133640000.debug]',
                                                               '  blah blah blah',
-                                                              '  \\--------'
                                                             ],
                                        'header' => [
                                                      '*** THE DUMPS DID NOT FINISH PROPERLY!'
