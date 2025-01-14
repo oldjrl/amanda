@@ -1,0 +1,266 @@
+2024-12-15 Jim Lawson <jrlaim@yahoo.com>
+	* Ensure DEBUG_XFER_REF is defined before testing its value.
+	* Try the built-in get_fs_ussage() before using df.
+	* Add default third argument to stop compiler complaints (xdr calls)
+	* Ensure stdout/stderr are reported on run failure.
+	* Add AMANDA_MD5_TYPE to configure MD5 API and implementation.
+	    Tested with openssl, libsasl2, amanda.
+	* Move md5 API and implmentation down a directory - on its way out the door.
+
+2024-11-22 Jim Lawson <jrlaim@yahoo.com>
+	* Move $run_setup_start_time and $run_setup_start_timestamp to Installcheck.pm so they're available for tests that don't use Run::setup().
+	* Add missing EXTEND(SP, 2) to argout typemap (fails if perl DEBUGGING enabled)
+
+2024-11-08 Jim Lawson <jrlaim@yahoo.com>
+	* call Installcheck::Run::preserve_run_on_failure() after check_amstatus to preserve failed test state
+
+2024-11-07 Jim Lawson <jrlaim@yahoo.com>
+	* replace fixed compile-time AMANDA_DBGDIR with run-time settable get_dbgdir() and add it to CONF definitions
+	* add a flag to indicate if we're running under installcheck so we can set dbgdir appropriately (test specific)
+	* update tests to reflect current log/dump output messages (specifically, "planner: tapecycle (2) <= runspercycle (10)" messages for each storage definition) and relocated dbgdir
+	* add Installcheck::Run::preserve_run_on_failure() to cleanup to preserve failing test state
+	* correct spelling of "return" in installcheck/Installcheck.pm
+	* increase driver debugging level in Installcheck/Dumpcache.pm
+	* add $run_setup_start_time and $run_setup_start_timestamp to help find and label saved test files
+	* add specification of files to save on test failures
+	* use relative note numbers in installcheck/success-dumper-chunker-2taper-by-level.pl and installcheck/success-dumper-chunker-2taper.pl
+	* update test text and login in tape_action.pl
+	* significant changes to driver to reduce state and duplicated code:
+ 	* replace taper->nb_wait_reply count with wtaper->wait_reply boolean
+ 	* check for schedule_done in is_all_work_done()
+ 	* have handle_taper_error() return RETRY, FAIL_SCHED, or FAIL_TAPER
+ 	* move code into update_cmd_file_storage() instead of duplicating it three times
+ 	* save last command in wtaper->cmd
+ 	* indicate for each command whether it's retryable or not
+	* Add Perl module HierHash to deal with files that should be saved on test errors.  This belongs outside Amanda, but add it to Installcheck to preserve it for now.
+
+2024-09-21 Jim Lawson <jrlaim@yahoo.com>
+	* remove explicit sort triggers (/-- ,\\-------) and sort sortable categories (NOTES, FAILED DUMP DETAILS, STRANGE DUMP DETAILS) if sorting is enabled - FIXME dump the unsorted strings into files and use "diff" to compare them
+	* enable sorting
+	* correct mkpath() error message in Run.pm
+	* sleep between calls to http://localhost:5001/amanda/v1.0/configs/TESTCONF/runs in pp-scripts.pl to reduce REST log noise
+	* bump expected tests from 84 to 85 in success-dumper-chunker+2taper-flush
+	* since we generate planner: tapecycle (2) <= runspercycle (10) for each separate storage, add these expected lines as appropriate
+	* try to have amdump report signal and core on planner/driver exits
+    With these changes, the only failing installcheck tests are:
+    Test Summary Report
+    -------------------
+    failure-server-custom-compress-not-found          (Wstat: 256 Tests: 40 Failed: 1)
+      Failed test:  39
+      Non-zero exit status: 1
+    success-dumper-chunker+dumper-chunker-taper-flush (Wstat: 7424 Tests: 96 Failed: 29)
+      Failed tests:  44, 52-53, 59-62, 64-73, 80-85, 90-92, 94-96
+      Non-zero exit status: 29
+    success-dumper-chunker-2taper                     (Wstat: 1024 Tests: 61 Failed: 4)
+      Failed tests:  11, 13-15
+      Non-zero exit status: 4
+    success-dumper-chunker-2taper-by-level            (Wstat: 2304 Tests: 100 Failed: 9)
+      Failed tests:  11, 13-14, 48, 62-66
+      Non-zero exit status: 9
+    tape_action                                       (Wstat: 256 Tests: 9 Failed: 1)
+      Failed test:  9
+      Non-zero exit status: 1
+      Parse errors: Bad plan.  You planned 12 tests but ran 9.
+    Files=136, Tests=6534, 2525 wallclock secs ( 3.52 usr  0.35 sys + 1170.72 cusr 104.29 csys = 1278.88 CPU)
+    Result: FAIL
+    Failed 5/136 test programs. 44/6534 subtests failed.
+
+2024-09-20 Jim Lawson <jrlaim@yahoo.com>
+	* Move wtaper.{left,written,nb_dle} to taper since they're properties of the volume/storage and not the parallel writer. These may need to be protected with locks if wtapers become thread-based.
+	* Major start of logic cleanup in driver.c:
+	* break short_dump_state() arguments into module, state
+	* drop nb_sent_new_tape
+	* have various start methods return a gboolean instead of passing a pointer to a gboolean
+	* event_create() a taper->fd ev_read event so vault events can be processed
+	* try to simplify the room left, extra_tapes_size, nb_dle logic - still needs work
+	* remove unsued find_diskspace() argument
+	* check vault queues in all_tapeq_empty()
+	* add all_queues_empty() and call it in is_all_work_done()
+	* call remove_sched() if we're about to free_sched() in handle_taper_error() - this is probably a no-op since the schedule has been removed if we're working on it. There's still some confusion with removing jobs (and scheds) from dumper and wtaper sructures. There is at least one case (following a wtaper error), where a busy dumper has no job and attempting to dereference dumper->job->sched faults. Forcing all retries to set sched->action to ACTION_FLUSH seems dubious. What about retrying DUMP_TO_TAPE jobs? For some reason, they end up in file_taper_result() instead of dumper_taper_result()..
+	* don't automatically clean TAPER_STATE_TAPE_STARTED on wtaper errors. We may want to retry.
+	* FIXME: scalpel left in the body - loop waiting for gdb attachment when retrying before forcing sched.action to ACTION_FLUSH in file_taper_result(). We don't actually encounter this in any of the installcheck testing, and since it's in file_taper_result() it should be okay.
+	* unilaterally freeing the job in file_taper_result() again seems wrong. What about retries?
+	* check for all_queues_empty() at end of read_schedule() and call flag_event_loop_done() if so
+	* add holding_allocated_space() to facilitate threshold constraint testing - FIXME - should include old dumps from previous runs in the calculation.
+	* fix clearing of used array in find_diskspace()
+	* try to simplify logic in tape_action()
+	* rename wtaper_state() to wtaper_state_to_string()
+	* don't dereference null label in remove_label_in_use()
+	* Remove commented out call to abort() on security_stream_write() failure.
+
+2024-09-15 Jim Lawson <jrlaim@yahoo.com>
+	* clear elt upstream and downstream fields when parent xref is unreferenced/deleted
+
+2024-05-24 Jim Lawson <jrlaim@yahoo.com>
+	* fix spacing on blank lines in child_watch_callback()
+
+2024-05-20 Jim Lawson <jrlaim@yahoo.com>
+	* security_stream_t explicit arg type conversion
+	* Don't advance to the next step in send_port_and_get_header() if no header data available; set chunker->ev_read to NULL after releasing it; setup_errout(), add __LINE__ arg to stop_dump(), add cleanup_dump(), security_stream_t explicit arg type conversion, add dump_done event and event_wait() on it, check for indexwriteerror
+	* installcheck optional expects
+	* replace calls to free() with g_free()
+	* implement the --enable-debug-xfer-ref flag, which triggers additional info (__FILE__, __LINE__) for calls to xref_ref(), xfer_unref(), xfer_cancel(), and xfer_filter_process(). It redefines these functios (adding a db to the name) and defines a macro to call the renamed versions of these functions.
+
+2024-05-19 Jim Lawson <jrlaim@yahoo.com>
+	* installcheck fixes + debugging
+ 	* set REST-API-PORT to 5000 (was 0)
+ 	* use a "relative" directory for the tapelist in installcheck/Amanda_Taper_Scribe.pl
+ 	* use a valid (but closed) file desriptor instead of -1 in installcheck/Amanda_Util.pl (the latter results in a consumption of all of memory in OpenBSD 7.2)
+ 	* we may lose CRCs due to race conditions when a dump is cancelled in installcheck/Amanda_Xfer.pl
+ 	* substitute the configured amandastatedir in installcheck/Installcheck/Catalogs.pm
+ 	* since properties are currently implmented as an un-sorted hash, sort them before comparing in installcheck/amgetconf.pl
+ 	* add a local sub cleanup() to remove the amandastatedir files at below TESTCONF since we'll recreate them for each test and read stderr instead of stdout in installcheck/amserverconfig.pl
+ 	* avoid complaints about undef if no barcode in perl/Amanda/Taper/Scribe.pm
+ 	* add debugging info (__FILE__, __LINE__) to xfer_cancel() and xfer_filter_process() to try to sort out race conditions in perl/Amanda/Xfer.swg
+ 	* add debugging info (__FILE__, __LINE__) to xfer_ref() in perl/amglue/xferwrap.c
+ 	* don't grab the pid file and don't delete a pid file from an active process in holding_get_files_for_flush() in server-src/holding.c
+ 	* don't call holding_cleanup() in server-src/planner.c
+ 	* pass __FILE__, __LINE__ info to xfer_cancel() in xfer-src/dest-application.c
+ 	* pass __FILE__, __LINE__ info to xfer_cancel() and print more debug info in child_watch_callback(); set the child_watch_callback to NULL in cancel_impl(); report __FILE__, __LINE_ in xfer_filter_process() in xfer-src/filter-process.c
+ 	* add __FILE__, __LINE__ to xfer_filter_process() prototype in xfer-src/xfer-element.h
+ 	* add __FILE__, __LINE__ to xfer_ref() and  xfer_cancel() in xfer-src/xfer.[ch]
+
+2024-05-06 Jim Lawson <jrlaim@yahoo.com>
+	* convert short_dump_state prefix to suffix to eliminate interference with check_amstatus()
+
+2024-02-28 Jim Lawson <jrlaim@yahoo.com>
+	* Cleanup unused variables, unsigned-signed comparisons
+	* Add handle_taper_error()
+	* Clean up use of total_tape_size and max_tape_size for determining if storage is over committed - requires re-formatting of untouched code.
+	* Indicate degraded disk size is in KB.
+
+2024-02-22 Jim Lawson <jrlaim@yahoo.com>
+	* fix looping sequence treating delayed dumps
+
+2024-02-21 Jim Lawson <jrlaim@yahoo.com>
+	* Cleanup confusion over tape_property_index (it has nothing to do with the number of estimates) and provide getter/setter for it.
+	* Eliminate tapetype from server estimates.
+	* Allocate a storage cache element for degraded (holding disk only) dumps.
+	* Calculate "total size" and "tape_length" even though they may have little relevance in the multi-storage case.
+	* Don't assume that estimate[0] is for full dumps and estimate[1-2] are for incrementals. That doesn't appear to match current code.
+	* Ensure we assign storage to an estimate before we need it.
+	* Take into account the storage used for particular dumps when determining if they fit and if any need to be delayed.
+
+2024-02-18 Jim Lawson <jrlaim@yahoo.com>
+	* more work on storage - add debugwait; remove unused variables; deal with unassigned storage; protect use of tape_property_index
+	* fix up warnings about non-prototypes
+
+2024-02-12 Jim Lawson <jrlaim@yahoo.com>
+	* Deal with the fact that multiple diverse storage (and tapes) may be used during a backup.
+
+2024-01-11 Jim Lawson <jrlaim@yahoo.com>
+	* Update/fix build time info
+
+2023-12-20 Jim Lawson <jrlaim@yahoo.com>
+	* installcheck fixes + debugging
+	* driver.c chunker,dumper events; debugging
+
+2023-10-23 Jim Lawson <jrlaim@yahoo.com>
+	* More event cleanup; add EV_WAIT event to kick out of event loop when work is done - needs more context testing
+
+2023-10-16 Jim Lawson <jrlaim@yahoo.com>
+	* Revert "Add missing check for is_volume_done()"
+	  This reverts commit 8d9325dc833e7653d6a7ee4b61b0af34ff480b54.
+          Replaces it with is_all_work_done() and event_loop_quit().
+
+2023-08-28 Jim Lawson <jrlaim@yahoo.com>
+	* update Glib support - address deprecations
+	* add debugging - short_dump_state-prefix
+
+2023-07-20 Jim Lawson <jrlaim@yahoo.com>
+	* don't use thread stacks for large buffers
+	* Fix random warnings, typos. NFC
+
+2023-07-13 Jim Lawson <jrlaim@yahoo.com>
+	* Add missing check for is_volume_done() (reverted 2023-10-16)
+	* Don't modify readfd events until we don't need them - i.e., when we're done with a volume.
+
+2023-07-09 Jim Lawson <jrlaim@yahoo.com>
+	* Add prefix string to short_dump_state; remove extraneous semi-colon; indent driver_debug call at 5689
+
+2023-07-05 Jim Lawson <jrlaim@yahoo.com>
+	* remove (hopefully) extraneous and incorrect checks on runtapes; use a temporary instead of new_dle for calculating new_data
+
+2023-06-21 Jim Lawson <jrlaim@yahoo.com>
+	* Add debugwait flag to wait for debugger attach at startup
+
+2023-06-08 Jim Lawson <jrlaim@yahoo.com>
+	* Add --dump option to amgetconf
+
+2023-06-07 Jim Lawson <jrlaim@yahoo.com>
+	* Rename dumptypes to dumptypes.in and use @sbindir@ so default is to use correct directory for am\* executables
+	* Force ~ expansion by explicitly invoking the shell
+
+2023-06-04 Jim Lawson <jrlaim@yahoo.com>
+	* Add $amandahomedir to known/expected paths.
+
+2023-05-28 Jim Lawson <jrlaim@yahoo.com>
+	* Breakout AMANDA_WITH_AMANDASTATEDIR from AMANDA_EXPAND_DIRS so its results are available to AMANDA_WITH_GNUTAR_LISTDIR
+
+2023-05-26 Jim Lawson <jrlaim@yahoo.com>
+	* Add amandahomedir and amandastatedir configuration variables and use them when locating related files
+	* Run man pages through config.status to incorporate local config changes (mostly paths to various files)
+	* add check_parent_directories() to verify writeable path before trying to create client files/directories
+	* add check_ssh() to verify client connectivity
+	* Removed /{usr,opt}/local/share from aclocal includes: these should be provided by aclocal itself.
+
+2023-05-21 Jim Lawson <jrlaim@yahoo.com>
+	* Add /opt/local/share/aclocal for MacOS macports
+
+2023-02-24 Jim Lawson <jrlaim@yahoo.com>
+	* Update LIBRESSL_VERSION_NUMBER to reflect HMAC_CTX_(init|cleanup) changes.
+
+2022-08-12 Jim Lawson <jrlaim@yahoo.com>
+	* Use $srcdir for common-src/svn-info.h
+
+2022-08-11 Jim Lawson <jrlaim@yahoo.com>
+	* Ignore restore's "cannot open /dev/tty: Device not configured"
+
+2022-08-10 Jim Lawson <jrlaim@yahoo.com>
+	* Don't print progress info if we're not writing to a terminal
+
+2022-07-09 Jim Lawson <jrlaim@yahoo.com>
+	* Use oldest tape to determine which log/index should be retained
+
+2021-04-21 Jim Lawson <jrlaim@yahoo.com>
+	* Use basename of script for pname
+
+2020-11-24 Jim Lawson <jrlaim@yahoo.com>
+	* Add --with-preserve-locale to preserve locale environment (safe_env) across execs.
+	* Reformat array of ignore_patterns
+
+2020-11-16 Jim Lawson <jrlaim@yahoo.com>
+	* Ignore some stderr messages from OpenBSD restore
+
+2020-11-10 Jim Lawson <jrlaim@yahoo.com>
+	* Use the filesystem mount point for OpenBSD
+	* Add lock filename debugging
+
+2020-09-04 Jim Lawson <jrlaim@yahoo.com>
+	* Treat symbolic link as a regular file.
+	   This should be addressed in a more complete fashion (universally?)
+	* Address build failure due to stale link
+	   Although the following comment claims to address the issue:
+            # move library search paths that coincide with paths to not yet
+            # installed libraries to the beginning of the library search list
+	  it silently fails due to the fact that $notinst_path contains absolute search paths, and $deplibs contains paths specified by the Makefile (typically relative paths).
+	* Don't use the absolute path for $notinst_path, and keep the final "-L$path" as a path without adding an unrelated $objdir value.
+
+2020-08-31 Jim Lawson <jrlaim@yahoo.com>
+	* Use any port available to amanda.
+
+2020-08-30 Jim Lawson <jrlaim@yahoo.com>
+	* Support DUIDs in fstab (openbsd opendev,-lutil).
+
+2020-08-18 Jim Lawson <jrlaim@yahoo.com>
+	* Generated config files update.
+	* Fix test INADDR_ANY connect address errors.
+	* Print test name before running test in case of crash/early exit.
+	* Ensure that INADDR_ANY is replaced with INADDR_LOOPBACK for connection attempts.
+	* Add more information to error/debug print outs.
+
+2020-08-10 Jim Lawson <jrlaim@yahoo.com>
+	* Update some Makefiles for /usr/local, out-of-tree builds.
+
+2018-08-13 Jim Lawson <jrlaim@yahoo.com>
+	* Openbsd 6.0 changes.
